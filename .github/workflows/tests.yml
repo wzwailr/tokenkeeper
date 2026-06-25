@@ -39,8 +39,15 @@ jobs:
       - name: Verify import works without optional deps
         run: |
           # 测试：没装 openai/anthropic 时也能 import
-          pip uninstall -y openai anthropic 2>/dev/null || true
-          python -c "from tokenkeeper import guard; print('✅ 优雅启动 OK')"
+          # 用 isolated venv 避免污染
+          python -m venv .test_venv
+          .test_venv/bin/python -m pip install -e .
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            .test_venv/Scripts/python.exe -c "from tokenkeeper import guard; print('✅ 优雅启动 OK (无 openai/anthropic)')"
+          else
+            .test_venv/bin/python -c "from tokenkeeper import guard; print('✅ 优雅启动 OK (无 openai/anthropic)')"
+          fi
+          rm -rf .test_venv  # 清理（Windows 用 Remove-Item，这里简单用 rm 跨平台）
 
   lint:
     name: Lint with flake8
