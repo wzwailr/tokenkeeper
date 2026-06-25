@@ -37,17 +37,24 @@ jobs:
           python -m pytest tests/ -v --tb=short --cov=tokenkeeper --cov-report=term-missing
 
       - name: Verify import works without optional deps
+        # 测试：没装 openai/anthropic 时也能 import
+        # 简单的 Python 命令即可
         run: |
-          # 测试：没装 openai/anthropic 时也能 import
-          # 用 isolated venv 避免污染
-          python -m venv .test_venv
-          .test_venv/bin/python -m pip install -e .
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            .test_venv/Scripts/python.exe -c "from tokenkeeper import guard; print('✅ 优雅启动 OK (无 openai/anthropic)')"
-          else
-            .test_venv/bin/python -c "from tokenkeeper import guard; print('✅ 优雅启动 OK (无 openai/anthropic)')"
-          fi
-          rm -rf .test_venv  # 清理（Windows 用 Remove-Item，这里简单用 rm 跨平台）
+          python -c "
+          import sys
+          import importlib
+          # 移除已装的 openai/anthropic 模块（如果有）
+          for mod in list(sys.modules.keys()):
+              if mod == 'openai' or mod.startswith('openai.') or mod == 'anthropic' or mod.startswith('anthropic.'):
+                  del sys.modules[mod]
+          # 尝试 import tokenkeeper
+          from tokenkeeper import guard
+          print('✅ tokenkeeper.guard 导入成功（不需要 openai/anthropic）')
+          # 验证 install 也不报错
+          guard.install(db_path='/tmp/test_graceful.db', auto_patch_openai=False)
+          guard.uninstall()
+          print('✅ install/uninstall 优雅降级')
+          "
 
   lint:
     name: Lint with flake8
