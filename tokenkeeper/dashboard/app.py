@@ -103,21 +103,24 @@ CUSTOM_CSS = """
 
 
 @st.cache_resource
-def get_ledger() -> Ledger:
-    """获取 Ledger 实例。
+def get_ledger(db_path: str) -> Ledger:
+    """获取 Ledger 实例（按 db_path 缓存）。
 
-    优先级：
-    1. 环境变量 TOKENKEEPER_DB（由 CLI --db 传入）
-    2. 默认路径 ./tokenkeeper.db
+    Args:
+        db_path: SQLite 文件路径（由环境变量 TOKENKEEPER_DB 决定）
     """
-    db_path = os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
     return Ledger(db_path)
+
+
+# 实际调用时从环境变量取路径
+def _get_db_path() -> str:
+    return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
 
 
 @st.cache_data(ttl=5)
 def load_summary(group_by: str, days: int) -> list[dict]:
     """加载汇总数据（5 秒缓存）。"""
-    ledger = get_ledger()
+    ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
     return ledger.summary(since=since, group_by=group_by)
 
@@ -125,7 +128,7 @@ def load_summary(group_by: str, days: int) -> list[dict]:
 @st.cache_data(ttl=5)
 def load_total(days: int) -> tuple[float, float]:
     """加载总成本。"""
-    ledger = get_ledger()
+    ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
     return ledger.total_cost(since=since)
 
@@ -135,7 +138,7 @@ def load_calls(
     days: int, project: str | None, model: str | None, limit: int,
 ) -> list[dict]:
     """加载调用记录。"""
-    ledger = get_ledger()
+    ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
     calls = ledger.query(since=since, project=project, model=model, limit=limit)
     return [
@@ -159,7 +162,7 @@ def load_calls(
 @st.cache_data(ttl=5)
 def load_daily(days: int) -> pd.DataFrame:
     """加载每日成本时间序列。"""
-    ledger = get_ledger()
+    ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
     calls = ledger.query(since=since, limit=100_000)
 
@@ -216,7 +219,7 @@ def render_sidebar() -> dict:
 @st.cache_data(ttl=10)
 def _get_all_projects() -> list[str]:
     """获取所有项目列表。"""
-    ledger = get_ledger()
+    ledger = get_ledger(_get_db_path())
     rows = ledger.summary(group_by="project")
     return [r["group_key"] for r in rows]
 
@@ -406,7 +409,7 @@ def render_budget_status() -> None:
         "或在 `~/.tokenkeeper/budgets.json` 配置文件中设置。"
     )
 
-    ledger = get_ledger()
+    ledger = get_ledger(_get_db_path())
     today_start = datetime.combine(date.today(), datetime.min.time()).timestamp()
     today_spend, _ = ledger.total_cost(since=today_start)
 
