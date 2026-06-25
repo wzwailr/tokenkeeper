@@ -71,7 +71,6 @@ def run_dashboard(port: int, db: str) -> None:
     cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
     with open(cfg_path, "w") as f:
         json.dump({"db_path": db}, f)
-    print(f"[tokenkeeper] DB: {db}")
 
     dashboard_path = os.path.join(
         os.path.dirname(__file__),

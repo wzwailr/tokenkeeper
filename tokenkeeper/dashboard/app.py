@@ -245,8 +245,7 @@ def render_header() -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        f'<p class="sub-header">实时追踪每一次 LLM 调用的成本与限额</p>'
-        f'<p style="color:#888;font-size:12px;">DB: {_get_db_path()} | 记录数: {len(load_calls(7, None, None, 5))}</p>',
+        '<p class="sub-header">实时追踪每一次 LLM 调用的成本与限额</p>',
         unsafe_allow_html=True,
     )
 
