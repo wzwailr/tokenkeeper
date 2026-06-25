@@ -66,9 +66,12 @@ def run_dashboard(port: int, db: str) -> None:
         )
         sys.exit(1)
 
-    import os
-    # 将 DB 路径传给看板进程（通过环境变量）
-    os.environ["TOKENKEEPER_DB"] = db
+    import os, json, tempfile
+    # 写临时配置文件，看板进程通过它知道 DB 路径
+    cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
+    with open(cfg_path, "w") as f:
+        json.dump({"db_path": db}, f)
+    print(f"[tokenkeeper] DB: {db}")
 
     dashboard_path = os.path.join(
         os.path.dirname(__file__),

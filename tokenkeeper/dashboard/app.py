@@ -112,9 +112,17 @@ def get_ledger(db_path: str) -> Ledger:
     return Ledger(db_path)
 
 
-# 实际调用时从环境变量取路径
+# 实际调用时从配置文件读取路径（CLI 写入的）
 def _get_db_path() -> str:
-    return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
+    """获取 DB 路径：优先读 CLI 写的临时配置，其次环境变量，最后默认。"""
+    import json, tempfile
+    cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
+    try:
+        with open(cfg_path) as f:
+            cfg = json.load(f)
+            return cfg.get("db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db"))
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
 
 
 @st.cache_data(ttl=5)
@@ -237,7 +245,8 @@ def render_header() -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<p class="sub-header">实时追踪每一次 LLM 调用的成本与限额</p>',
+        f'<p class="sub-header">实时追踪每一次 LLM 调用的成本与限额</p>'
+        f'<p style="color:#888;font-size:12px;">DB: {_get_db_path()} | 记录数: {len(load_calls(7, None, None, 5))}</p>',
         unsafe_allow_html=True,
     )
 
