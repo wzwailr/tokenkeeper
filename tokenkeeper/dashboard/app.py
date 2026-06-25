@@ -104,8 +104,15 @@ CUSTOM_CSS = """
 
 @st.cache_resource
 def get_ledger() -> Ledger:
-    """获取 Ledger 单例（streamlit 缓存）。"""
-    # 默认 DB 路径
+    """获取 Ledger 实例（优先用 guard 单例，其次按环境变量/默认路径）。"""
+    # 优先：如果 guard 已安装，直接用它内部的 ledger
+    try:
+        if guard.is_installed():
+            return guard.ledger()
+    except Exception:
+        pass
+
+    # 次选：环境变量 TOKENKEEPER_DB
     db_path = os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
     return Ledger(db_path)
 
@@ -203,8 +210,8 @@ def render_sidebar() -> dict:
 
         st.markdown("---")
         st.markdown("### 📖 文档")
-        st.markdown("- [README](https://github.com/yourusername/tokenkeeper)")
-        st.markdown("- [使用示例](https://github.com/yourusername/tokenkeeper/blob/main/examples)")
+        st.markdown("- [README](https://github.com/wzwailr/tokenkeeper)")
+        st.markdown("- [使用示例](https://github.com/wzwailr/tokenkeeper/blob/master/examples)")
 
     return {"days": days, "project": project, "model": model}
 

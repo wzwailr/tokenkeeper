@@ -90,7 +90,7 @@ def install(guard_api: Any) -> None:
     # patch（带错误处理）
     try:
         # patch
-        anthropic.Anthropic().messages.create = _wrap_anthropic_create  # type: ignore[assignment]
+        anthropic.Anthropic().messages.create = _wrap_create  # type: ignore[assignment]
         logger.info("Anthropic messages.create 已 patch")
     except Exception as e:
         # patch 失败，记录但继续运行（降级模式）
