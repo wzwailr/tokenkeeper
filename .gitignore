@@ -1,0 +1,107 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Distribution / packaging
+.Python
+*.egg-info/
+
+# tokenkeeper specific
+# SQLite 数据库（用户数据，不入库）
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Streamlit
+.streamlit/secrets.toml
+
+# 测试 demo 数据
+examples/*/demo.db
+examples/*/real*.db
+examples/*/test*.db
+examples/*/auto_test.db
+examples/*/anthropic_test.db
+examples/*/openai_test.db
+examples/*/stream_test.db
+examples/*/aliyun_real.db
+examples/*/minimax_real.db
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 真实 token 风险：不要入库任何 key 文件
+**/apiKey*
+**/*api_key*
+**/*API_KEY*
+**/minimax_key.txt
+**/minimax*key*
+**/.env
+**/.env.*

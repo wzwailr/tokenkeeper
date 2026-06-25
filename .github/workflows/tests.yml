@@ -1,0 +1,58 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v --tb=short --cov=tokenkeeper --cov-report=term-missing
+
+      - name: Verify import works without optional deps
+        run: |
+          # 测试：没装 openai/anthropic 时也能 import
+          pip uninstall -y openai anthropic 2>/dev/null || true
+          python -c "from tokenkeeper import guard; print('✅ 优雅启动 OK')"
+
+  lint:
+    name: Lint with flake8
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install flake8
+      - name: flake8
+        run: |
+          # 只检查语法和明显错误，不强制风格
+          flake8 tokenkeeper/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          # 复杂 lint 留给 ruff / black（未来）

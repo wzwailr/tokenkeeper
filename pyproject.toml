@@ -1,0 +1,111 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tokenkeeper"
+version = "0.1.0"
+description = "AI API 成本监控与限流守护者 — 让任何 AI 应用开发者自动获得 token 统计、成本追踪、预算限额与熔断保护"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "tokenkeeper contributors" },
+]
+keywords = [
+    "ai",
+    "llm",
+    "openai",
+    "anthropic",
+    "cost-tracking",
+    "monitoring",
+    "budget-control",
+    "agent",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Office/Business :: Financial",
+]
+
+dependencies = [
+    "streamlit>=1.30.0; extra == 'dashboard'",
+]
+
+[project.optional-dependencies]
+# 看板依赖（用 streamlit 时才需要）
+dashboard = [
+    "streamlit>=1.30.0",
+    "pandas>=2.0.0",
+    "plotly>=5.18.0",
+]
+# OpenAI 集成
+openai = [
+    "openai>=1.30.0",
+]
+# Anthropic 集成
+anthropic = [
+    "anthropic>=0.30.0",
+]
+# LangChain 集成
+langchain = [
+    "langchain>=0.2.0",
+    "langchain-community>=0.2.0",
+]
+# 测试
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "mypy>=1.7.0",
+]
+# 一键装齐
+all = [
+    "streamlit>=1.30.0",
+    "pandas>=2.0.0",
+    "plotly>=5.18.0",
+    "openai>=1.30.0",
+    "anthropic>=0.30.0",
+    "langchain>=0.2.0",
+    "pytest>=7.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/tokenkeeper"
+Documentation = "https://github.com/yourusername/tokenkeeper/blob/main/README.md"
+Repository = "https://github.com/yourusername/tokenkeeper.git"
+Issues = "https://github.com/yourusername/tokenkeeper/issues"
+
+[project.scripts]
+# 命令行入口
+tokenkeeper = "tokenkeeper.cli:main"
+
+[tool.setuptools]
+packages = ["tokenkeeper", "tokenkeeper.integrations"]
+
+[tool.setuptools.package-data]
+tokenkeeper = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra -q --strict-markers"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.coverage.run]
+source = ["tokenkeeper"]
+omit = ["*/tests/*", "*/scripts/*"]
