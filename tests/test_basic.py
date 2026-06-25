@@ -374,6 +374,22 @@ class TestGuard(unittest.TestCase):
 # ====================================================================
 
 
+class TestGracefulImport(unittest.TestCase):
+    """测试优雅降级：即使 ledger 安装有 openai/anthropic，import 也不挂。"""
+
+    def test_can_install_and_uninstall(self):
+        """guard.install 和 uninstall 能跑（这是 CI 验证的核心）。"""
+        # 用临时 DB
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "test.db")
+            from tokenkeeper import guard
+            guard.install(db_path=db_path, project="test", user="tester")
+            self.assertTrue(guard.is_installed())
+            guard.uninstall()
+            self.assertFalse(guard.is_installed())
+
+
 class TestCoreIntegration(unittest.TestCase):
     """core 模块集成测试。"""
 
