@@ -41,7 +41,7 @@ class PricingDict(TypedDict, total=False):
 
 
 #: 价格表最后更新日期
-PRICING_LAST_UPDATED: str = "2026-06-23"
+PRICING_LAST_UPDATED: str = "2026-06-25"
 
 #: 内置价格表 raw 字典（model_name -> PricingDict）
 #: 由 :mod:`tokenkeeper.pricing` 启动时转为 :class:`ModelPricing`

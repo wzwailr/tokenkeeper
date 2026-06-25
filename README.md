@@ -77,7 +77,7 @@ resp = client.chat.completions.create(
 ## ✨ 功能特性
 
 - **零侵入** — monkey-patch OpenAI/Anthropic SDK，业务代码零改动
-- **自动计费** — 内置 43 个模型价格表（OpenAI / Anthropic / DeepSeek / 阿里 / 智谱 / 百度 / 月之暗面 / 零一万物 / minimax），支持 $ / ¥ 双币种
+- **自动计费** — 内置 42 个模型价格表（OpenAI / Anthropic / DeepSeek / 阿里 / 智谱 / 百度 / 月之暗面 / 零一万物 / minimax），支持 $ / ¥ 双币种
 - **预算熔断** — 每日 / 每月 / 单项目 / 单用户限额，超限 block 或 warn
 - **流式支持** — OpenAI/Anthropic 流式调用自动记账
 - **本地优先** — SQLite 本地存储，数据不出机器
@@ -179,7 +179,7 @@ client = openai.OpenAI(
 )
 ```
 
-内置价格表已覆盖 43 个模型。未识别的模型 `cost_usd=0`，可通过 `register_custom_pricing()` 补录。
+内置价格表已覆盖 42 个模型。未识别的模型 `cost_usd=0`，可通过 `register_custom_pricing()` 补录。
 
 ---
 
@@ -422,7 +422,7 @@ register_custom_pricing(
 **A**：不会。所有数据存在本地 SQLite（默认 `./tokenkeeper.db`），不连接任何云服务。
 
 ### Q3：支持哪些模型？
-**A**：43 个内置模型。覆盖 OpenAI、Anthropic、DeepSeek、阿里、智谱、百度、月之暗面、零一万物、minimax。任何 OpenAI 兼容协议的端点都自动工作。
+**A**：42 个内置模型。覆盖 OpenAI、Anthropic、DeepSeek、阿里、智谱、百度、月之暗面、零一万物、minimax。任何 OpenAI 兼容协议的端点都自动工作。
 
 ### Q4：怎么区分不同项目/用户的费用？
 **A**：`guard.install()` 时设 `project="..."` 和 `user="..."`，看板上按这两个维度筛选。
@@ -474,7 +474,7 @@ tokenkeeper/
 ├── guard.py         # Guard 预算检查逻辑
 ├── ledger.py        # Ledger SQLite 读写
 ├── pricing.py       # 模型价格查找
-├── pricing_data.py  # 43 个模型内置价格表
+├── pricing_data.py  # 42 个模型内置价格表
 ├── cli.py           # 命令行入口
 └── integrations/
     ├── openai_compat.py   # OpenAI SDK patch（兼容所有 OpenAI-like 端点）

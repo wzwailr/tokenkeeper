@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tokenkeeper-ai"
-version = "0.2.0a0"
+version = "0.2.0"
 description = "AI API 成本监控与限流守护者 — 让任何 AI 应用开发者自动获得 token 统计、成本追踪、预算限额与熔断保护"
 readme = "README.md"
 requires-python = ">=3.9"

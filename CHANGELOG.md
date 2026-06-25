@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0a0] - 2026-06-25
+## [0.2.0] - 2026-06-25
 
 ### Added
 - **流式调用自动记账**：OpenAI `stream=True` 和 Anthropic `stream()` 调用完成后自动提取 usage 并记账
@@ -64,6 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 多租户 / 团队管理：未支持
 - 流式响应下的 tool_use / 多模态：未测试
 
-[Unreleased]: https://github.com/wzwailr/tokenkeeper/compare/v0.2.0a0...HEAD
-[0.2.0a0]: https://github.com/wzwailr/tokenkeeper/compare/v0.1.0...v0.2.0a0
+[Unreleased]: https://github.com/wzwailr/tokenkeeper/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/wzwailr/tokenkeeper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/wzwailr/tokenkeeper/releases/tag/v0.1.0
