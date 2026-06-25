@@ -6,10 +6,10 @@
 
 让任何 AI 应用开发者自动获得 token 统计、成本追踪、预算限额与熔断保护
 
-[![PyPI version](https://img.shields.io/pypi/v/tokenkeeper)](https://pypi.org/project/tokenkeeper/)
-[![Python](https://img.shields.io/pypi/pyversions/tokenkeeper)](https://pypi.org/project/tokenkeeper/)
+[![PyPI version](https://img.shields.io/pypi/v/tokenkeeper-ai)](https://pypi.org/project/tokenkeeper-ai/)
+[![Python](https://img.shields.io/pypi/pyversions/tokenkeeper-ai)](https://pypi.org/project/tokenkeeper-ai/)
 [![CI](https://github.com/wzwailr/tokenkeeper/actions/workflows/tests.yml/badge.svg)](https://github.com/wzwailr/tokenkeeper/actions/workflows/tests.yml)
-[![License](https://img.shields.io/pypi/l/tokenkeeper)](https://github.com/wzwailr/tokenkeeper/blob/master/LICENSE)
+[![License](https://img.shields.io/pypi/l/tokenkeeper-ai)](https://github.com/wzwailr/tokenkeeper/blob/master/LICENSE)
 
 </div>
 
@@ -52,7 +52,7 @@
 
 ```python
 # 1. 安装
-pip install tokenkeeper
+pip install tokenkeeper-ai
 
 # 2. 在你的 AI 应用入口加 3 行
 from tokenkeeper import guard
@@ -90,19 +90,19 @@ resp = client.chat.completions.create(
 
 ```bash
 # 基础安装（只看核心功能）
-pip install tokenkeeper
+pip install tokenkeeper-ai
 
 # 带看板
-pip install "tokenkeeper[dashboard]"
+pip install "tokenkeeper-ai[dashboard]"
 
 # 带 OpenAI 集成（通常你已装了 openai）
-pip install "tokenkeeper[openai]"
+pip install "tokenkeeper-ai[openai]"
 
 # 带 Anthropic 集成
-pip install "tokenkeeper[anthropic]"
+pip install "tokenkeeper-ai[anthropic]"
 
 # 一键装齐
-pip install "tokenkeeper[all]"
+pip install "tokenkeeper-ai[all]"
 
 # 开发模式（从源码）
 git clone https://github.com/wzwailr/tokenkeeper.git
