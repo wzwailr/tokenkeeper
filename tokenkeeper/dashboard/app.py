@@ -104,15 +104,12 @@ CUSTOM_CSS = """
 
 @st.cache_resource
 def get_ledger() -> Ledger:
-    """获取 Ledger 实例（优先用 guard 单例，其次按环境变量/默认路径）。"""
-    # 优先：如果 guard 已安装，直接用它内部的 ledger
-    try:
-        if guard.is_installed():
-            return guard.ledger()
-    except Exception:
-        pass
+    """获取 Ledger 实例。
 
-    # 次选：环境变量 TOKENKEEPER_DB
+    优先级：
+    1. 环境变量 TOKENKEEPER_DB（由 CLI --db 传入）
+    2. 默认路径 ./tokenkeeper.db
+    """
     db_path = os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
     return Ledger(db_path)
 

@@ -67,6 +67,9 @@ def run_dashboard(port: int, db: str) -> None:
         sys.exit(1)
 
     import os
+    # 将 DB 路径传给看板进程（通过环境变量）
+    os.environ["TOKENKEEPER_DB"] = db
+
     dashboard_path = os.path.join(
         os.path.dirname(__file__),
         "dashboard",
