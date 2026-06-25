@@ -7,10 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0a0] - 2026-06-25
+
 ### Added
-- GitHub Actions CI workflow
-- Comprehensive .gitignore
-- LICENSE (MIT) and CHANGELOG
+- **流式调用自动记账**：OpenAI `stream=True` 和 Anthropic `stream()` 调用完成后自动提取 usage 并记账
+- **错误健壮化**：
+  - guard.check() 网络重试（最多 3 次）
+  - API 调用网络重试（最多 3 次）
+  - 降级模式：patch 失败时原 SDK 仍可正常工作
+  - 错误隔离：OpenAI patch 失败不影响 Anthropic patch，反之亦然
+  - guard.install() 在 patch 失败后仍算已安装
+- `.gitignore` 覆盖 Python 项目常见文件
+- `LICENSE` (MIT)
+- `CHANGELOG.md`
+- GitHub Actions CI（`tests.yml`）：Python 3.9/3.10/3.11/3.12，含 graceful import 测试
+
+### Changed
+- `_patch_openai()` 返回 `bool` 表示是否成功 patch 至少一个 SDK
+- `pyproject.toml` 版本号 0.1.0 → 0.2.0a0；URL 指向 wzwailr/tokenkeeper
+- README 重写：加 badges、TOC、API 参考、流式调用示例、开发指南
+
+### Fixed
+- **anthropic.py 全局变量名不一致**：`_original_create` vs `_original_anthropic_create` 导致 patch 必然失败
+- `test_can_install_and_uninstall` 中 uninstall 后误判 `is_installed()` 为 True
 
 ## [0.1.0] - 2026-06-23
 
@@ -45,5 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 多租户 / 团队管理：未支持
 - 流式响应下的 tool_use / 多模态：未测试
 
-[Unreleased]: https://github.com/wzwailr/tokenkeeper/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/wzwailr/tokenkeeper/compare/v0.2.0a0...HEAD
+[0.2.0a0]: https://github.com/wzwailr/tokenkeeper/compare/v0.1.0...v0.2.0a0
 [0.1.0]: https://github.com/wzwailr/tokenkeeper/releases/tag/v0.1.0

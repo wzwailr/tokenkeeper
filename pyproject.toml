@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tokenkeeper"
-version = "0.1.0"
+version = "0.2.0a0"
 description = "AI API 成本监控与限流守护者 — 让任何 AI 应用开发者自动获得 token 统计、成本追踪、预算限额与熔断保护"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -31,6 +31,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Office/Business :: Financial",
 ]
@@ -77,10 +78,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/tokenkeeper"
-Documentation = "https://github.com/yourusername/tokenkeeper/blob/main/README.md"
-Repository = "https://github.com/yourusername/tokenkeeper.git"
-Issues = "https://github.com/yourusername/tokenkeeper/issues"
+Homepage = "https://github.com/wzwailr/tokenkeeper"
+Documentation = "https://github.com/wzwailr/tokenkeeper/blob/master/README.md"
+Repository = "https://github.com/wzwailr/tokenkeeper.git"
+Issues = "https://github.com/wzwailr/tokenkeeper/issues"
 
 [project.scripts]
 # 命令行入口
