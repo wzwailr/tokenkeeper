@@ -388,6 +388,11 @@ class TestGracefulImport(unittest.TestCase):
             self.assertTrue(guard.is_installed())
             guard.uninstall()
             self.assertFalse(guard.is_installed())
+            
+            # 重新安装依然正常
+            guard.install(db_path=db_path, project="test", user="tester")
+            self.assertTrue(guard.is_installed())
+            guard.uninstall()
 
 
 class TestCoreIntegration(unittest.TestCase):

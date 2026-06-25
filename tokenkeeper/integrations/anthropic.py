@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # ====================================================================
 
 #: 保存原始 create 方法，用于 uninstall
-_original_create: Optional[Any] = None
+_original_anthropic_create: Optional[Any] = None
 
 #: 保存 guard_api 引用
 _guard_api: Optional[Any] = None
@@ -59,14 +59,19 @@ def install(guard_api: Any) -> None:
     Raises:
         ImportError: anthropic 包未安装
     """
-    global _original_create, _guard_api
+    global _original_anthropic_create, _guard_api
 
-    if _original_create is not None:
+    if _original_anthropic_create is not None:
         logger.debug("Anthropic 已经 patch 过，跳过")
         return
 
+    # 如果 guard_api 是 None（降级模式），直接返回
+    if guard_api is None:
+        logger.warning("tokenkeeper 降级模式：Anthropic patch 跳过（无 guard_api）")
+        return
+
     try:
-        from anthropic.resources.messages import Messages
+        import anthropic
     except ImportError as e:
         logger.error("anthropic 包未安装，无法 patch: %s", e)
         raise
@@ -74,28 +79,41 @@ def install(guard_api: Any) -> None:
     _guard_api = guard_api
 
     # 保存原始方法
-    _original_create = Messages.create
+    try:
+        _original_anthropic_create = anthropic.Anthropic().messages.create
+    except Exception as e:
+        # 获取原始方法失败，降级模式
+        logger.error("获取 Anthropic 原始方法失败: %s", e)
+        logger.warning("tokenkeeper 降级模式：Anthropic 调用将不记账")
+        return
 
-    # patch
-    Messages.create = _wrap_create  # type: ignore[assignment]
-    logger.info("Anthropic Messages.create 已 patch")
+    # patch（带错误处理）
+    try:
+        # patch
+        anthropic.Anthropic().messages.create = _wrap_anthropic_create  # type: ignore[assignment]
+        logger.info("Anthropic messages.create 已 patch")
+    except Exception as e:
+        # patch 失败，记录但继续运行（降级模式）
+        logger.error("patch Anthropic messages.create 失败: %s", e)
+        logger.warning("tokenkeeper 降级模式：Anthropic 调用将不记账")
+        # 不抛异常，让原 SDK 继续工作
 
 
 def uninstall() -> None:
     """恢复原始 Anthropic SDK 方法。"""
-    global _original_create, _guard_api
+    global _original_anthropic_create, _guard_api
 
-    if _original_create is None:
+    if _original_anthropic_create is None:
         return
 
     try:
         from anthropic.resources.messages import Messages
-        Messages.create = _original_create
+        Messages.create = _original_anthropic_create
         logger.info("Anthropic Messages.create 已 unpatch")
     except ImportError:
         pass
 
-    _original_create = None
+    _original_anthropic_create = None
     _guard_api = None
 
 
@@ -118,9 +136,21 @@ def _wrap_create(self, *args, **kwargs):
     """
     if _guard_api is None:
         # 没装 tokenkeeper，直接调用原方法
-        if _original_create is not None:
-            return _original_create(self, *args, **kwargs)
+        if _original_anthropic_create is not None:
+            return _original_anthropic_create(self, *args, **kwargs)
         raise RuntimeError("tokenkeeper 未初始化")
+    
+    # 如果原始方法未定义（patch 失败），直接调用原方法
+    if _original_anthropic_create is None:
+        logger.warning("Anthropic patch 失败，直接调用原方法")
+        # 这里需要动态获取原始方法
+        try:
+            import anthropic
+            original_method = anthropic.Anthropic().messages.create
+            return original_method(self, *args, **kwargs)
+        except Exception as e:
+            logger.error("获取原始方法失败: %s", e)
+            raise
 
     ledger = _guard_api.ledger()
     guard_instance = _guard_api.guard_instance()
@@ -158,7 +188,7 @@ def _wrap_create(self, *args, **kwargs):
     error_msg: Optional[str] = None
     status = "success"
     try:
-        resp = _original_create(self, *args, **kwargs)
+        resp = _original_anthropic_create(self, *args, **kwargs)
     except Exception as e:
         latency_ms = (time.time() - t0) * 1000
         status = "error"

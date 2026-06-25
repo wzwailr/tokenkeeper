@@ -77,9 +77,15 @@ def install(guard_api: Any) -> None:
     Completions = _chat_completions.Completions
     _original_create = Completions.create
 
-    # patch
-    Completions.create = _wrap_create  # type: ignore[assignment]
-    logger.info("OpenAI Completions.create 已 patch")
+    # patch（带错误处理）
+    try:
+        Completions.create = _wrap_create  # type: ignore[assignment]
+        logger.info("OpenAI Completions.create 已 patch")
+    except Exception as e:
+        # patch 失败，记录但继续运行（降级模式）
+        logger.error("patch OpenAI Completions.create 失败: %s", e)
+        logger.warning("tokenkeeper 降级模式：OpenAI 调用将不记账")
+        # 不抛异常，让原 SDK 继续工作
 
 
 def uninstall() -> None:
@@ -151,51 +157,67 @@ def _wrap_create(self, *args, **kwargs):
     user = _guard_api._user
 
     if guard_instance is not None:
-        try:
-            decision = guard_instance.check(
-                estimated_cost=estimated_cost,
-                project=project,
-                user=user,
-            )
-        except Exception as e:
-            # guard 内部错误不能让业务崩
-            logger.error("guard.check() 失败，跳过: %s", e)
-            decision = None
+        # guard 检查带重试
+        decision = None
+        for attempt in range(3):  # 最多 3 次（1 次原始 + 2 次重试）
+            try:
+                decision = guard_instance.check(
+                    estimated_cost=estimated_cost,
+                    project=project,
+                    user=user,
+                )
+                break
+            except Exception as e:
+                if attempt < 2:  # 还有重试机会
+                    logger.warning("guard.check() 第 %d 次失败，重试中: %s", attempt + 1, e)
+                    time.sleep(0.5)  # 等待 500ms 再重试
+                else:
+                    # 重试 2 次仍失败，fail-open
+                    logger.error("guard.check() 重试 2 次后仍失败，跳过检查: %s", e)
+                    decision = None
 
         if isinstance(decision, type(Exception())):
             # 已经是 BudgetExceededError（block 触发）
             raise
 
-    # 调用原始方法
+    # 调用原始方法（带网络重试）
     t0 = time.time()
     error_msg: Optional[str] = None
     status = "success"
-    try:
-        resp = _original_create(self, *args, **kwargs)
-    except Exception as e:
-        latency_ms = (time.time() - t0) * 1000
-        status = "error"
-        error_msg = str(e)
-
-        # 错误也要记账
-        if ledger is not None:
-            try:
-                ledger.record(_make_record(
-                    model=model,
-                    prompt_tokens=estimated_prompt_tokens,
-                    completion_tokens=0,
-                    cost_usd=0.0,
-                    cost_cny=0.0,
-                    latency_ms=latency_ms,
-                    status=status,
-                    error=error_msg,
-                    project=project,
-                    user=user,
-                ))
-            except Exception as le:
-                logger.error("记录失败调用失败: %s", le)
-
-        raise
+    resp = None
+    for attempt in range(3):  # 最多 3 次重试
+        try:
+            resp = _original_create(self, *args, **kwargs)
+            break
+        except Exception as e:
+            if attempt < 2:  # 还有重试机会
+                logger.warning("网络调用第 %d 次失败，重试中: %s", attempt + 1, e)
+                time.sleep(1.0)  # 等待 1 秒再重试
+            else:
+                # 重试 2 次仍失败，记录错误并抛出
+                latency_ms = (time.time() - t0) * 1000
+                status = "error"
+                error_msg = str(e)
+                
+                # 错误也要记账
+                if ledger is not None:
+                    try:
+                        ledger.record(_make_record(
+                            model=model,
+                            prompt_tokens=estimated_prompt_tokens,
+                            completion_tokens=0,
+                            cost_usd=0.0,
+                            cost_cny=0.0,
+                            latency_ms=latency_ms,
+                            status=status,
+                            error=error_msg,
+                            project=project,
+                            user=user,
+                        ))
+                    except Exception as le:
+                        logger.error("记录失败调用失败: %s", le)
+                
+                raise
 
     # 流式响应：包装成"记账的流"
     if is_stream:

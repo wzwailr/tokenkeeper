@@ -105,7 +105,7 @@ class GuardAPI:
             # 2. 创建 guard
             self._guard = Guard(self._ledger)
 
-            # 3. Patch OpenAI SDK
+            # 3. （可选）自动 patch OpenAI SDK
             if auto_patch_openai:
                 try:
                     self._patch_openai()
@@ -115,13 +115,19 @@ class GuardAPI:
                         "用户调用 openai 时不会被 tokenkeeper 拦截。"
                     )
                 except Exception as e:
-                    logger.error("patch OpenAI 失败: %s", e)
+                    logger.error("patch SDK 失败，但 tokenkeeper 仍可使用: %s", e)
 
-            self._installed = True
-            logger.info(
-                "tokenkeeper 已安装: db=%s project=%s user=%s",
-                db_path, project, user,
-            )
+            # 确保即使 patch 失败，tokenkeeper 也算安装成功
+            try:
+                self._installed = True
+                logger.info(
+                    "tokenkeeper 已安装: db=%s project=%s user=%s",
+                    db_path, project, user,
+                )
+            except Exception as e:
+                logger.error("设置 _installed 失败: %s", e)
+                raise
+                raise
 
     def uninstall(self) -> None:
         """卸载 tokenkeeper，恢复原始 SDK。"""
@@ -279,29 +285,43 @@ class GuardAPI:
     # SDK Patch 管理
     # ------------------------------------------------------------------
 
-    def _patch_openai(self) -> None:
-        """patch OpenAI 和 Anthropic SDK（延迟 import）。"""
-        # OpenAI 兼容协议
-        try:
-            from .integrations.openai_compat import install as install_openai
-            install_openai(self)
-            self._patched_sdks.append("openai")
-            logger.info("OpenAI SDK 已 patch")
-        except ImportError as e:
-            logger.warning("无法 import openai_compat: %s", e)
-        except Exception as e:
-            logger.error("patch OpenAI 失败: %s", e)
+    def _patch_openai(self) -> bool:
+        """patch OpenAI 和 Anthropic SDK（延迟 import）。
 
-        # Anthropic 原生 SDK
+        Returns:
+            bool: 是否成功 patch 至少一个 SDK
+        """
+        success = False
+        
         try:
-            from .integrations.anthropic import install as install_anthropic
-            install_anthropic(self)
-            self._patched_sdks.append("anthropic")
-            logger.info("Anthropic SDK 已 patch")
-        except ImportError as e:
-            logger.warning("无法 import anthropic: %s", e)
+            # OpenAI 兼容协议
+            try:
+                from .integrations.openai_compat import install as install_openai
+                install_openai(self)
+                self._patched_sdks.append("openai")
+                logger.info("OpenAI SDK 已 patch")
+                success = True
+            except ImportError as e:
+                logger.warning("无法 import openai_compat: %s", e)
+            except Exception as e:
+                logger.error("patch OpenAI 失败: %s", e)
+
+            # Anthropic 原生 SDK
+            try:
+                from .integrations.anthropic import install as install_anthropic
+                install_anthropic(self)
+                self._patched_sdks.append("anthropic")
+                logger.info("Anthropic SDK 已 patch")
+                success = True
+            except ImportError as e:
+                logger.warning("无法 import anthropic: %s", e)
+            except Exception as e:
+                logger.error("patch Anthropic 失败: %s", e)
+                # 不影响 _installed 状态，只是 Anthropic 不记账
         except Exception as e:
-            logger.error("patch Anthropic 失败: %s", e)
+            logger.error("patch SDK 过程中发生未预期错误: %s", e)
+            
+        return success
     def _unpatch_sdk(self, sdk_name: str) -> None:
         """unpatch SDK。"""
         if sdk_name == "openai":
