@@ -77,15 +77,22 @@ def install(guard_api: Any) -> None:
     Completions = _chat_completions.Completions
     _original_create = Completions.create
 
-    # patch（带错误处理）
+    # patch sync（带错误处理）
     try:
         Completions.create = _wrap_create  # type: ignore[assignment]
         logger.info("OpenAI Completions.create 已 patch")
     except Exception as e:
-        # patch 失败，记录但继续运行（降级模式）
         logger.error("patch OpenAI Completions.create 失败: %s", e)
         logger.warning("tokenkeeper 降级模式：OpenAI 调用将不记账")
-        # 不抛异常，让原 SDK 继续工作
+
+    # patch async（同样拦截记账）
+    try:
+        AsyncCompletions = _chat_completions.AsyncCompletions
+        AsyncCompletions.create = _wrap_async_create  # type: ignore[assignment]
+        logger.info("OpenAI AsyncCompletions.create 已 patch")
+    except Exception as e:
+        logger.error("patch OpenAI AsyncCompletions.create 失败: %s", e)
+        logger.warning("tokenkeeper 降级模式：OpenAI 异步调用将不记账")
 
 
 def uninstall() -> None:
@@ -268,6 +275,91 @@ def _wrap_create(self, *args, **kwargs):
         except Exception as le:
             # 记账失败不能影响业务
             logger.error("记录成功调用失败: %s", le)
+
+    return resp
+
+
+async def _wrap_async_create(self, *args, **kwargs):
+    """拦截 OpenAI AsyncCompletions.create — 异步版本。
+
+    与 _wrap_create 共用核心逻辑，但调用路径为 async。
+    """
+    # 如果没有 guard，直接透传
+    if _guard_api is None:
+        if _original_create is not None:
+            return await _original_create(self, *args, **kwargs)
+        raise RuntimeError("tokenkeeper 未初始化")
+
+    # 提取 model（优先 kwargs，其次第一个位置参数）
+    model = kwargs.get("model", "unknown")
+
+    # 估算成本
+    messages = kwargs.get("messages", [])
+    estimated_prompt_tokens = _estimate_input_tokens(messages)
+    estimated_cost = _estimate_cost(model, estimated_prompt_tokens, estimated_completion_tokens=500)
+
+    # guard 检查
+    ledger = _guard_api.ledger()
+    guard_instance = _guard_api.guard_instance()
+    if guard_instance is not None:
+        try:
+            from tokenkeeper.guard import BudgetExceededError
+            guard_instance.check(estimated_cost=estimated_cost)
+        except BudgetExceededError:
+            raise
+        except Exception:
+            pass
+
+    # 调用原始 async create
+    import time
+    t0 = time.time()
+    error_msg = None
+    status = "success"
+    resp = None
+
+    for attempt in range(3):
+        try:
+            resp = await _original_create(self, *args, **kwargs)
+            break
+        except Exception as e:
+            if attempt == 2:
+                latency_ms = (time.time() - t0) * 1000
+                status = "error"
+                error_msg = str(e)
+                if ledger is not None:
+                    try:
+                        ledger.record(_make_record(
+                            model=model, prompt_tokens=0, completion_tokens=0,
+                            cost_usd=0, cost_cny=0, latency_ms=latency_ms,
+                            status="error", error=error_msg,
+                        ))
+                    except Exception:
+                        pass
+                raise
+            import asyncio
+            await asyncio.sleep(0.5 * (attempt + 1))
+
+    # 提取真实 usage 并记账
+    latency_ms = (time.time() - t0) * 1000
+    if resp is not None and status == "success":
+        actual_model = _extract_model(resp) or model
+        prompt_tokens, completion_tokens, _total = _extract_usage(resp)
+        cost_breakdown = _estimate_cost(actual_model, prompt_tokens, completion_tokens)
+
+        if ledger is not None:
+            try:
+                ledger.record(_make_record(
+                    model=actual_model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cost_usd=cost_breakdown.cost_usd,
+                    cost_cny=cost_breakdown.cost_cny,
+                    latency_ms=latency_ms,
+                    status="success",
+                    error=None,
+                ))
+            except Exception as e:
+                logger.error("记账失败: %s", e)
 
     return resp
 

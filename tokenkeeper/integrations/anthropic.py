@@ -87,16 +87,21 @@ def install(guard_api: Any) -> None:
         logger.warning("tokenkeeper 降级模式：Anthropic 调用将不记账")
         return
 
-    # patch（带错误处理）
+    # patch sync
     try:
-        # patch
         anthropic.Anthropic().messages.create = _wrap_create  # type: ignore[assignment]
         logger.info("Anthropic messages.create 已 patch")
     except Exception as e:
-        # patch 失败，记录但继续运行（降级模式）
         logger.error("patch Anthropic messages.create 失败: %s", e)
         logger.warning("tokenkeeper 降级模式：Anthropic 调用将不记账")
-        # 不抛异常，让原 SDK 继续工作
+
+    # patch async
+    try:
+        anthropic.AsyncAnthropic().messages.create = _wrap_async_create  # type: ignore[assignment]
+        logger.info("Anthropic AsyncMessages.create 已 patch")
+    except Exception as e:
+        logger.error("patch Anthropic AsyncMessages.create 失败: %s", e)
+        logger.warning("tokenkeeper 降级模式：Anthropic 异步调用将不记账")
 
 
 def uninstall() -> None:
@@ -262,6 +267,75 @@ def _wrap_create(self, *args, **kwargs):
         except Exception as le:
             # 记账失败不能影响业务
             logger.error("记录成功调用失败: %s", le)
+
+    return resp
+
+
+async def _wrap_async_create(self: Any, *args: Any, **kwargs: Any) -> Any:
+    """拦截 Anthropic AsyncMessages.create — 异步版本。
+
+    与 _wrap_create 共用核心逻辑，但调用路径为 async。
+    """
+    if _guard_api is None:
+        if _original_anthropic_create is not None:
+            return await _original_anthropic_create(self, *args, **kwargs)
+        raise RuntimeError("tokenkeeper 未初始化")
+
+    if _original_anthropic_create is None:
+        import anthropic
+        return await anthropic.AsyncAnthropic().messages.create(self, *args, **kwargs)
+
+    ledger = _guard_api.ledger()
+    guard_instance = _guard_api.guard_instance()
+    model = kwargs.get("model", "unknown")
+    messages = kwargs.get("messages", [])
+    system = kwargs.get("system", None)
+    estimated_prompt_tokens = _estimate_input_tokens(messages, system)
+    estimated_cost = _estimate_cost(model, estimated_prompt_tokens, estimated_completion_tokens=500)
+
+    if guard_instance is not None:
+        try:
+            from tokenkeeper.guard import BudgetExceededError
+            guard_instance.check(estimated_cost=estimated_cost)
+        except BudgetExceededError:
+            raise
+        except Exception:
+            pass
+
+    import time, asyncio
+    t0 = time.time()
+    error_msg = None
+    status = "success"
+    resp = None
+
+    for attempt in range(3):
+        try:
+            resp = await _original_anthropic_create(self, *args, **kwargs)
+            break
+        except Exception as e:
+            if attempt == 2:
+                latency_ms = (time.time() - t0) * 1000
+                status = "error"
+                error_msg = str(e)
+                _record_anthropic_stream(ledger, model, model, None,
+                                         _guard_api._project, _guard_api._user, t0, error_msg)
+                raise
+            await asyncio.sleep(0.5 * (attempt + 1))
+
+    latency_ms = (time.time() - t0) * 1000
+    if resp is not None and status == "success":
+        actual_model = _extract_model(resp) or model
+        usage = _extract_usage(resp)
+        cost = _estimate_cost(actual_model, usage[0], usage[1])
+        try:
+            ledger.record(_make_record(
+                model=actual_model, prompt_tokens=usage[0],
+                completion_tokens=usage[1], cost_usd=cost.cost_usd,
+                cost_cny=cost.cost_cny, latency_ms=latency_ms,
+                project=_guard_api._project, user=_guard_api._user,
+            ))
+        except Exception:
+            pass
 
     return resp
 
