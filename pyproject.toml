@@ -60,6 +60,10 @@ langchain = [
     "langchain>=0.2.0",
     "langchain-community>=0.2.0",
 ]
+# PostgreSQL 后端
+postgres = [
+    "psycopg2-binary>=2.9",
+]
 # 测试
 dev = [
     "pytest>=7.4.0",

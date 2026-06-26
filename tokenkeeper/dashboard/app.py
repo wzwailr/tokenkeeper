@@ -104,12 +104,16 @@ CUSTOM_CSS = """
 
 
 @st.cache_resource
-def get_ledger(db_path: str) -> Ledger:
+def get_ledger(db_path: str) -> Any:
     """获取 Ledger 实例（按 db_path 缓存）。
 
-    Args:
-        db_path: SQLite 文件路径（由环境变量 TOKENKEEPER_DB 决定）
+    支持:
+    - SQLite 文件路径: ./tokenkeeper.db
+    - PostgreSQL URL: postgresql://user:pass@host:5432/db
     """
+    if db_path.startswith("postgresql://") or db_path.startswith("postgres://"):
+        from tokenkeeper.postgres_ledger import PostgresLedger
+        return PostgresLedger(db_path)
     return Ledger(db_path)
 
 
