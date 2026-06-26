@@ -328,6 +328,7 @@ class Guard:
                     current,
                     limit,
                 )
+                self._try_send_alert(scope, project, current, limit)
                 raise BudgetExceededError(
                     scope=scope,
                     current_spend=current,
@@ -340,13 +341,29 @@ class Guard:
                     worst = GuardDecision.WARN
                 logger.warning(
                     "预算超限 warn: scope=%s project=%s 当前=$%.4f 上限=$%.4f",
-                    scope,
-                    project,
-                    current,
-                    limit,
+                    scope, project, current, limit,
                 )
+                # 发送告警
+                self._try_send_alert(scope, project, current, limit)
 
         return worst
+
+    # ------------------------------------------------------------------
+    # 告警
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _try_send_alert(scope: str, project: str, current: float, limit: float) -> None:
+        """尝试发送告警（ignore 所有异常）。"""
+        try:
+            from tokenkeeper.alerting import send_alert
+            msg = (
+                f"预算超限: scope={scope} project={project} "
+                f"当前=${current:.4f} 上限=${limit:.4f}"
+            )
+            send_alert(msg, level="warning")
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # 缓存层
