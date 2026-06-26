@@ -9,6 +9,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/tokenkeeper-ai)](https://pypi.org/project/tokenkeeper-ai/)
 [![Python](https://img.shields.io/pypi/pyversions/tokenkeeper-ai)](https://pypi.org/project/tokenkeeper-ai/)
 [![CI](https://github.com/wzwailr/tokenkeeper/actions/workflows/tests.yml/badge.svg)](https://github.com/wzwailr/tokenkeeper/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/badge/coverage-51%25-yellow)](https://github.com/wzwailr/tokenkeeper)
 [![License](https://img.shields.io/pypi/l/tokenkeeper-ai)](https://github.com/wzwailr/tokenkeeper/blob/master/LICENSE)
 
 </div>
