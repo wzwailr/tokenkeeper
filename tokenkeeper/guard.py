@@ -28,7 +28,7 @@ import logging
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
@@ -91,9 +91,9 @@ class BudgetExceededError(Exception):
 class GuardDecision(Enum):
     """Guard 检查决策。"""
 
-    ALLOW = "allow"          # 允许通过
-    WARN = "warn"            # 允许通过，但记 warning
-    BLOCK = "block"          # 拒绝
+    ALLOW = "allow"  # 允许通过
+    WARN = "warn"  # 允许通过，但记 warning
+    BLOCK = "block"  # 拒绝
 
 
 # ====================================================================
@@ -131,7 +131,11 @@ class Budget:
             raise ValueError(f"action must be warn/block, got {self.action!r}")
 
         # 价格字段非负
-        for field_name in ("daily_limit_usd", "monthly_limit_usd", "per_call_limit_usd"):
+        for field_name in (
+            "daily_limit_usd",
+            "monthly_limit_usd",
+            "per_call_limit_usd",
+        ):
             val = getattr(self, field_name)
             if val is not None and val < 0:
                 raise ValueError(f"{field_name} must be >= 0, got {val}")
@@ -197,9 +201,12 @@ class Guard:
             self._cache.clear()
         logger.info(
             "添加预算: scope=%s key=%s daily=%s monthly=%s per_call=%s action=%s",
-            budget.scope, budget.scope_key,
-            budget.daily_limit_usd, budget.monthly_limit_usd,
-            budget.per_call_limit_usd, budget.action,
+            budget.scope,
+            budget.scope_key,
+            budget.daily_limit_usd,
+            budget.monthly_limit_usd,
+            budget.per_call_limit_usd,
+            budget.action,
         )
 
     def clear_budgets(self) -> None:
@@ -268,32 +275,45 @@ class Guard:
                 continue
 
             # 单次预算
-            if budget.per_call_limit_usd is not None and estimated_cost > budget.per_call_limit_usd:
-                violations.append((
-                    budget, "per_call", estimated_cost, budget.per_call_limit_usd
-                ))
+            if (
+                budget.per_call_limit_usd is not None
+                and estimated_cost > budget.per_call_limit_usd
+            ):
+                violations.append(
+                    (budget, "per_call", estimated_cost, budget.per_call_limit_usd)
+                )
 
             # 日 / 月预算
             daily_spend, monthly_spend = self._get_spend_cached(project)
 
-            if budget.daily_limit_usd is not None and daily_spend >= budget.daily_limit_usd:
-                violations.append((
-                    budget, "daily", daily_spend, budget.daily_limit_usd
-                ))
+            if (
+                budget.daily_limit_usd is not None
+                and daily_spend >= budget.daily_limit_usd
+            ):
+                violations.append(
+                    (budget, "daily", daily_spend, budget.daily_limit_usd)
+                )
             elif (
                 budget.daily_limit_usd is not None
                 and daily_spend + estimated_cost > budget.daily_limit_usd
             ):
                 # 预估会超，但还没超——warning
-                violations.append((
-                    budget, "daily_after_estimate",
-                    daily_spend + estimated_cost, budget.daily_limit_usd,
-                ))
+                violations.append(
+                    (
+                        budget,
+                        "daily_after_estimate",
+                        daily_spend + estimated_cost,
+                        budget.daily_limit_usd,
+                    )
+                )
 
-            if budget.monthly_limit_usd is not None and monthly_spend >= budget.monthly_limit_usd:
-                violations.append((
-                    budget, "monthly", monthly_spend, budget.monthly_limit_usd
-                ))
+            if (
+                budget.monthly_limit_usd is not None
+                and monthly_spend >= budget.monthly_limit_usd
+            ):
+                violations.append(
+                    (budget, "monthly", monthly_spend, budget.monthly_limit_usd)
+                )
 
         # 聚合决策
         for budget, scope, current, limit in violations:
@@ -303,7 +323,10 @@ class Guard:
                 # 立即抛异常
                 logger.error(
                     "预算超限 block 触发: scope=%s project=%s 当前=$%.4f 上限=$%.4f",
-                    scope, project, current, limit,
+                    scope,
+                    project,
+                    current,
+                    limit,
                 )
                 raise BudgetExceededError(
                     scope=scope,
@@ -317,7 +340,10 @@ class Guard:
                     worst = GuardDecision.WARN
                 logger.warning(
                     "预算超限 warn: scope=%s project=%s 当前=$%.4f 上限=$%.4f",
-                    scope, project, current, limit,
+                    scope,
+                    project,
+                    current,
+                    limit,
                 )
 
         return worst
@@ -352,10 +378,10 @@ class Guard:
 
     def _compute_spend(self, project: str) -> tuple[float, float]:
         """从 ledger 计算日 / 月已花费。"""
-        now = time.time()
         # 当天 00:00
         # 用本地时区（业务上更符合直觉）
         import datetime
+
         today_start = datetime.datetime.combine(
             datetime.date.today(), datetime.time.min
         ).timestamp()
@@ -385,6 +411,4 @@ class Guard:
 
 def _self_check() -> None:  # pragma: no cover
     """模块自检（已迁移到 scripts/self_check_guard.py）。"""
-    raise NotImplementedError(
-        "自检逻辑已迁移到 scripts/self_check_guard.py"
-    )
+    raise NotImplementedError("自检逻辑已迁移到 scripts/self_check_guard.py")

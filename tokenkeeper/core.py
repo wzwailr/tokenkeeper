@@ -23,7 +23,7 @@ import logging
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 from .guard import Budget, BudgetExceededError, Guard, GuardDecision
 from .ledger import Ledger
@@ -122,7 +122,9 @@ class GuardAPI:
                 self._installed = True
                 logger.info(
                     "tokenkeeper 已安装: db=%s project=%s user=%s",
-                    db_path, project, user,
+                    db_path,
+                    project,
+                    user,
                 )
             except Exception as e:
                 logger.error("设置 _installed 失败: %s", e)
@@ -169,7 +171,9 @@ class GuardAPI:
         finally:
             if was_installed:
                 self.install(
-                    db_path=str(self._ledger.db_path) if self._ledger else "./tokenkeeper.db",
+                    db_path=str(self._ledger.db_path)
+                    if self._ledger
+                    else "./tokenkeeper.db",
                     project=self._project,
                     user=self._user,
                 )
@@ -207,13 +211,15 @@ class GuardAPI:
             per_call_limit_usd=per_call_limit_usd,
             action=action,
         )
-        self._guard.set_budget(budget)
+        if self._guard is not None:
+            self._guard.set_budget(budget)
 
     def clear_budgets(self) -> None:
         """清空所有预算。"""
         if not self._installed:
             return
-        self._guard.clear_budgets()
+        if self._guard is not None:
+            self._guard.clear_budgets()
 
     # ------------------------------------------------------------------
     # 直接记账（用户手动调用）
@@ -263,19 +269,19 @@ class GuardAPI:
     # 查询（代理到 ledger）
     # ------------------------------------------------------------------
 
-    def query(self, **kwargs):
+    def query(self, **kwargs: Any) -> list[Any]:
         """查询调用记录（代理到 ledger）。"""
         if not self._installed or self._ledger is None:
             return []
         return self._ledger.query(**kwargs)
 
-    def summary(self, **kwargs):
+    def summary(self, **kwargs: Any) -> list[dict[str, Any]]:
         """汇总（代理到 ledger）。"""
         if not self._installed or self._ledger is None:
             return []
         return self._ledger.summary(**kwargs)
 
-    def total_cost(self, **kwargs) -> tuple[float, float]:
+    def total_cost(self, **kwargs: Any) -> tuple[float, float]:
         """总成本（代理到 ledger）。"""
         if not self._installed or self._ledger is None:
             return 0.0, 0.0
@@ -292,11 +298,12 @@ class GuardAPI:
             bool: 是否成功 patch 至少一个 SDK
         """
         success = False
-        
+
         try:
             # OpenAI 兼容协议
             try:
                 from .integrations.openai_compat import install as install_openai
+
                 install_openai(self)
                 self._patched_sdks.append("openai")
                 logger.info("OpenAI SDK 已 patch")
@@ -309,6 +316,7 @@ class GuardAPI:
             # Anthropic 原生 SDK
             try:
                 from .integrations.anthropic import install as install_anthropic
+
                 install_anthropic(self)
                 self._patched_sdks.append("anthropic")
                 logger.info("Anthropic SDK 已 patch")
@@ -320,13 +328,15 @@ class GuardAPI:
                 # 不影响 _installed 状态，只是 Anthropic 不记账
         except Exception as e:
             logger.error("patch SDK 过程中发生未预期错误: %s", e)
-            
+
         return success
+
     def _unpatch_sdk(self, sdk_name: str) -> None:
         """unpatch SDK。"""
         if sdk_name == "openai":
             try:
                 from .integrations.openai_compat import uninstall as uninstall_openai
+
                 uninstall_openai()
                 logger.info("OpenAI SDK 已 unpatch")
             except ImportError:
@@ -334,6 +344,7 @@ class GuardAPI:
         elif sdk_name == "anthropic":
             try:
                 from .integrations.anthropic import uninstall as uninstall_anthropic
+
                 uninstall_anthropic()
                 logger.info("Anthropic SDK 已 unpatch")
             except ImportError:

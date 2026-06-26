@@ -8,19 +8,20 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 
-sys.path.insert(0, r'D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper')
+sys.path.insert(0, r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper")
 
 # 设置 DB 路径环境变量（看板读这个）
-os.environ['TOKENKEEPER_DB'] = r'D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\demo.db'
+os.environ["TOKENKEEPER_DB"] = (
+    r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\demo.db"
+)
 
 from streamlit.testing.v1 import AppTest
 
 
 def main():
     """跑 streamlit app 并打印渲染结果。"""
-    app_path = r'D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\tokenkeeper\dashboard\app.py'
+    app_path = r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\tokenkeeper\dashboard\app.py"
 
     print("=" * 70)
     print("🪶 tokenkeeper 看板实际渲染效果")
@@ -36,7 +37,9 @@ def main():
             print(f"  {e}")
         return
 
-    print(f"✅ 渲染成功（{len(at.markdown)} 个 markdown 节点, {len(at.metric)} 个 metric, {len(at.dataframe)} 个 dataframe）")
+    print(
+        f"✅ 渲染成功（{len(at.markdown)} 个 markdown 节点, {len(at.metric)} 个 metric, {len(at.dataframe)} 个 dataframe）"
+    )
     print()
     print("=" * 70)
     print("📊 顶部 KPI 卡片（metrics）")
@@ -44,10 +47,10 @@ def main():
     for m in at.metric:
         label = m.label
         value = m.value
-        delta = m.delta if hasattr(m, 'delta') else None
-        print(f"  📌 {label:20s}  →  {value}", end='')
+        delta = m.delta if hasattr(m, "delta") else None
+        print(f"  📌 {label:20s}  →  {value}", end="")
         if delta:
-            print(f"  (Δ {delta})", end='')
+            print(f"  (Δ {delta})", end="")
         print()
 
     print()
@@ -63,7 +66,7 @@ def main():
     print("🏆 DataFrame 摘要（前 5 个）")
     print("=" * 70)
     for i, df in enumerate(at.dataframe):
-        print(f"\n[DataFrame #{i+1}]")
+        print(f"\n[DataFrame #{i + 1}]")
         print(df.value.head(5).to_string())
 
     print()

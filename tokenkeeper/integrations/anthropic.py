@@ -108,6 +108,7 @@ def uninstall() -> None:
 
     try:
         from anthropic.resources.messages import Messages
+
         Messages.create = _original_anthropic_create
         logger.info("Anthropic Messages.create 已 unpatch")
     except ImportError:
@@ -139,13 +140,14 @@ def _wrap_create(self, *args, **kwargs):
         if _original_anthropic_create is not None:
             return _original_anthropic_create(self, *args, **kwargs)
         raise RuntimeError("tokenkeeper 未初始化")
-    
+
     # 如果原始方法未定义（patch 失败），直接调用原方法
     if _original_anthropic_create is None:
         logger.warning("Anthropic patch 失败，直接调用原方法")
         # 这里需要动态获取原始方法
         try:
             import anthropic
+
             original_method = anthropic.Anthropic().messages.create
             return original_method(self, *args, **kwargs)
         except Exception as e:
@@ -161,7 +163,9 @@ def _wrap_create(self, *args, **kwargs):
 
     # 估算输入 token 数（粗估）
     estimated_prompt_tokens = _estimate_input_tokens(messages, system)
-    estimated_cost = _estimate_cost(model, estimated_prompt_tokens, estimated_completion_tokens=500)
+    estimated_cost = _estimate_cost(
+        model, estimated_prompt_tokens, estimated_completion_tokens=500
+    )
 
     # guard 检查
     project = _guard_api._project
@@ -197,18 +201,20 @@ def _wrap_create(self, *args, **kwargs):
         # 错误也要记账
         if ledger is not None:
             try:
-                ledger.record(_make_record(
-                    model=model,
-                    prompt_tokens=estimated_prompt_tokens,
-                    completion_tokens=0,
-                    cost_usd=0.0,
-                    cost_cny=0.0,
-                    latency_ms=latency_ms,
-                    status=status,
-                    error=error_msg,
-                    project=project,
-                    user=user,
-                ))
+                ledger.record(
+                    _make_record(
+                        model=model,
+                        prompt_tokens=estimated_prompt_tokens,
+                        completion_tokens=0,
+                        cost_usd=0.0,
+                        cost_cny=0.0,
+                        latency_ms=latency_ms,
+                        status=status,
+                        error=error_msg,
+                        project=project,
+                        user=user,
+                    )
+                )
             except Exception as le:
                 logger.error("记录失败调用失败: %s", le)
 
@@ -227,6 +233,7 @@ def _wrap_create(self, *args, **kwargs):
 
     # 计算实际成本
     from ..pricing import calculate_cost
+
     cost_breakdown = calculate_cost(
         model=actual_model,
         prompt_tokens=input_tokens,
@@ -237,19 +244,21 @@ def _wrap_create(self, *args, **kwargs):
     # 记账
     if ledger is not None:
         try:
-            ledger.record(_make_record(
-                model=actual_model,
-                prompt_tokens=input_tokens,
-                completion_tokens=output_tokens,
-                cost_usd=cost_breakdown.cost_usd,
-                cost_cny=cost_breakdown.cost_cny,
-                latency_ms=latency_ms,
-                status=status,
-                error=None,
-                project=project,
-                user=user,
-                cached_tokens=cached_tokens,
-            ))
+            ledger.record(
+                _make_record(
+                    model=actual_model,
+                    prompt_tokens=input_tokens,
+                    completion_tokens=output_tokens,
+                    cost_usd=cost_breakdown.cost_usd,
+                    cost_cny=cost_breakdown.cost_cny,
+                    latency_ms=latency_ms,
+                    status=status,
+                    error=None,
+                    project=project,
+                    user=user,
+                    cached_tokens=cached_tokens,
+                )
+            )
         except Exception as le:
             # 记账失败不能影响业务
             logger.error("记录成功调用失败: %s", le)
@@ -257,7 +266,9 @@ def _wrap_create(self, *args, **kwargs):
     return resp
 
 
-def _wrap_anthropic_stream(stream, model, project, user, t0, ledger):
+def _wrap_anthropic_stream(
+    stream: Any, model: str, project: str, user: str, t0: float, ledger: Any
+) -> Any:
     """包装 Anthropic 流式响应。
 
     Anthropic SDK 的 stream 是 MessageStream 对象（不是普通迭代器）：
@@ -273,7 +284,7 @@ def _wrap_anthropic_stream(stream, model, project, user, t0, ledger):
     # 注册 done 回调
     original_done = getattr(stream, "until_done", None)
 
-    async def _wrapped_done():
+    async def _wrapped_done() -> Any:
         """替代原始 until_done，记账后再返回。"""
         try:
             if original_done is not None:
@@ -282,7 +293,7 @@ def _wrap_anthropic_stream(stream, model, project, user, t0, ledger):
                 result = None
         except Exception as e:
             _record_anthropic_stream(
-                ledger, model, model, None, project, user, t0, e
+                ledger, model, model, None, project, user, t0, str(e)
             )
             raise
         # 成功：提取 usage
@@ -304,26 +315,35 @@ def _wrap_anthropic_stream(stream, model, project, user, t0, ledger):
 
 
 def _record_anthropic_stream(
-    ledger, requested_model, actual_model, usage, project, user, t0, error
-):
+    ledger: Any,
+    requested_model: str,
+    actual_model: Optional[str],
+    usage: Optional[tuple[int, int, int]],
+    project: str,
+    user: str,
+    t0: float,
+    error: Optional[str] = None,
+) -> None:
     """记录 Anthropic 流式调用。"""
     if ledger is None:
         return
     latency_ms = (time.time() - t0) * 1000
     if error is not None:
         try:
-            ledger.record(_make_record(
-                model=requested_model,
-                prompt_tokens=0,
-                completion_tokens=0,
-                cost_usd=0.0,
-                cost_cny=0.0,
-                latency_ms=latency_ms,
-                status="error",
-                error=str(error),
-                project=project,
-                user=user,
-            ))
+            ledger.record(
+                _make_record(
+                    model=requested_model,
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    cost_usd=0.0,
+                    cost_cny=0.0,
+                    latency_ms=latency_ms,
+                    status="error",
+                    error=str(error),
+                    project=project,
+                    user=user,
+                )
+            )
         except Exception as le:
             logger.error("记录 Anthropic 流式失败: %s", le)
         return
@@ -336,27 +356,30 @@ def _record_anthropic_stream(
         cached_tokens = cache_read
 
     from ..pricing import calculate_cost
+
     cost_breakdown = calculate_cost(
-        model=actual_model,
+        model=actual_model or "unknown",
         prompt_tokens=input_tokens,
         completion_tokens=output_tokens,
         cached_tokens=cached_tokens,
     )
 
     try:
-        ledger.record(_make_record(
-            model=actual_model,
-            prompt_tokens=input_tokens,
-            completion_tokens=output_tokens,
-            cost_usd=cost_breakdown.cost_usd,
-            cost_cny=cost_breakdown.cost_cny,
-            latency_ms=latency_ms,
-            status="success",
-            error=None,
-            project=project,
-            user=user,
-            cached_tokens=cached_tokens,
-        ))
+        ledger.record(
+            _make_record(
+                model=actual_model or "unknown",
+                prompt_tokens=input_tokens,
+                completion_tokens=output_tokens,
+                cost_usd=cost_breakdown.cost_usd,
+                cost_cny=cost_breakdown.cost_cny,
+                latency_ms=latency_ms,
+                status="success",
+                error=None,
+                project=project,
+                user=user,
+                cached_tokens=cached_tokens,
+            )
+        )
     except Exception as le:
         logger.error("记录 Anthropic 流式成功: %s", le)
 
@@ -394,9 +417,12 @@ def _estimate_input_tokens(messages: list, system: Any = None) -> int:
     return total_chars // 3
 
 
-def _estimate_cost(model: str, prompt_tokens: int, estimated_completion_tokens: int) -> float:
+def _estimate_cost(
+    model: str, prompt_tokens: int, estimated_completion_tokens: int
+) -> float:
     """估算本次调用成本（粗估）。"""
     from ..pricing import calculate_cost
+
     try:
         breakdown = calculate_cost(
             model=model,
@@ -463,6 +489,7 @@ def _make_record(
 ):
     """构造 CallRecord。"""
     from ..ledger import CallRecord
+
     return CallRecord(
         timestamp=time.time(),
         project=project,

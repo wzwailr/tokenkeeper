@@ -31,11 +31,14 @@ def main() -> None:
     # dashboard
     dash_parser = subparsers.add_parser("dashboard", help="启动 Streamlit 看板")
     dash_parser.add_argument(
-        "--port", type=int, default=8501,
+        "--port",
+        type=int,
+        default=8501,
         help="端口（默认 8501）",
     )
     dash_parser.add_argument(
-        "--db", default="./tokenkeeper.db",
+        "--db",
+        default="./tokenkeeper.db",
         help="SQLite DB 路径（默认 ./tokenkeeper.db）",
     )
 
@@ -45,6 +48,7 @@ def main() -> None:
         print(f"tokenkeeper {__version__}")
     elif args.command == "info":
         import json
+
         info = _info()
         info["db_default"] = "./tokenkeeper.db"
         print(json.dumps(info, ensure_ascii=False, indent=2))
@@ -60,13 +64,13 @@ def run_dashboard(port: int, db: str) -> None:
     try:
         import streamlit.web.cli as stcli
     except ImportError:
-        print(
-            "❌ streamlit 未安装。\n"
-            "请运行: pip install tokenkeeper[dashboard]"
-        )
+        print("❌ streamlit 未安装。\n请运行: pip install tokenkeeper[dashboard]")
         sys.exit(1)
 
-    import os, json, tempfile
+    import os
+    import json
+    import tempfile
+
     # 写临时配置文件，看板进程通过它知道 DB 路径
     cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
     with open(cfg_path, "w") as f:

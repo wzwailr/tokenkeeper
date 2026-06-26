@@ -6,10 +6,12 @@ import os
 import sys
 import time
 
-sys.path.insert(0, r'D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper')
+sys.path.insert(0, r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper")
 
 # 设置 DB 路径
-os.environ['TOKENKEEPER_DB'] = r'D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\demo.db'
+os.environ["TOKENKEEPER_DB"] = (
+    r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\demo.db"
+)
 
 from playwright.sync_api import sync_playwright
 
@@ -21,7 +23,7 @@ def main():
     print("=" * 70)
 
     streamlit_url = "http://localhost:8501"
-    out_dir = r'D:\aiCode\Hermes\aiTest\ai-agent-governance\docs\screenshots'
+    out_dir = r"D:\aiCode\Hermes\aiTest\ai-agent-governance\docs\screenshots"
     os.makedirs(out_dir, exist_ok=True)
 
     with sync_playwright() as p:

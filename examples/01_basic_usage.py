@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 
 # 让脚本能 import tokenkeeper 包
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -74,6 +73,7 @@ def main() -> None:
     for model, prompt_t, completion_t, latency in samples:
         # 模拟计算成本
         from tokenkeeper.pricing import calculate_cost
+
         cost = calculate_cost(model, prompt_t, completion_t)
 
         # 记录
@@ -94,8 +94,10 @@ def main() -> None:
     calls = guard.query()
     print(f"   共 {len(calls)} 条记录:")
     for c in calls:
-        print(f"     - {c.model:20s}  prompt={c.prompt_tokens:>5d}  "
-              f"completion={c.completion_tokens:>4d}  cost=${c.cost_usd:.4f}")
+        print(
+            f"     - {c.model:20s}  prompt={c.prompt_tokens:>5d}  "
+            f"completion={c.completion_tokens:>4d}  cost=${c.cost_usd:.4f}"
+        )
 
     # --------------------------------------------------------------
     # 5. 汇总
@@ -103,10 +105,12 @@ def main() -> None:
     print("\n[5] 按模型汇总...")
     by_model = guard.summary(group_by="model")
     for row in by_model:
-        print(f"     {row['group_key']:20s}  "
-              f"calls={row['calls']:>3d}  "
-              f"total_tokens={row['total_tokens']:>7d}  "
-              f"cost=${row['cost_usd']:.4f}")
+        print(
+            f"     {row['group_key']:20s}  "
+            f"calls={row['calls']:>3d}  "
+            f"total_tokens={row['total_tokens']:>7d}  "
+            f"cost=${row['cost_usd']:.4f}"
+        )
 
     # --------------------------------------------------------------
     # 6. 总成本
@@ -120,7 +124,9 @@ def main() -> None:
     # --------------------------------------------------------------
     print("\n[7] 预算检查（模拟下一次调用）...")
     estimated = 0.05  # 预估本次调用 $0.05
-    decision = guard.guard_instance().check(estimated_cost=estimated, project="demo-app")
+    decision = guard.guard_instance().check(
+        estimated_cost=estimated, project="demo-app"
+    )
     print(f"     预估成本: ${estimated:.4f}")
     print(f"     决策: {decision.value}")
 
@@ -134,7 +140,7 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("[OK] 基础示例完成")
     print("=" * 60)
-    print(f"\n💡 你可以查看 SQLite 数据库:")
+    print("\n💡 你可以查看 SQLite 数据库:")
     print(f"   sqlite3 {db_path} 'SELECT * FROM calls;'")
 
 

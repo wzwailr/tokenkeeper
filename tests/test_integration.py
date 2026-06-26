@@ -9,10 +9,18 @@ import unittest
 from unittest.mock import patch
 
 
-def _make_record(model="gpt-4o", prompt=100, completion=50, cost_usd=0.005,
-                 project="test", user="tester", status="success"):
+def _make_record(
+    model="gpt-4o",
+    prompt=100,
+    completion=50,
+    cost_usd=0.005,
+    project="test",
+    user="tester",
+    status="success",
+):
     """构造 CallRecord 对象。"""
     from tokenkeeper.ledger import CallRecord
+
     return CallRecord(
         timestamp=time.time(),
         model=model,
@@ -65,7 +73,9 @@ class TestLedgerIntegration(unittest.TestCase):
             db_path = os.path.join(tmp, "test.db")
             with Ledger(db_path) as ledger:
                 ledger.record(_make_record(model="gpt-4o", project="proj-a", user="u1"))
-                ledger.record(_make_record(model="gpt-4o-mini", project="proj-b", user="u1"))
+                ledger.record(
+                    _make_record(model="gpt-4o-mini", project="proj-b", user="u1")
+                )
                 ledger.record(_make_record(model="gpt-4o", project="proj-a", user="u2"))
 
                 self.assertEqual(len(ledger.query(limit=10)), 3)
@@ -104,6 +114,7 @@ class TestGuardIntegration(unittest.TestCase):
 
     def setUp(self):
         from tokenkeeper import guard
+
         if guard.is_installed():
             guard.uninstall()
 
@@ -113,8 +124,9 @@ class TestGuardIntegration(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             db_path = os.path.join(tmp, "test.db")
-            guard.install(db_path=db_path, project="test", user="tester",
-                          auto_patch_openai=False)
+            guard.install(
+                db_path=db_path, project="test", user="tester", auto_patch_openai=False
+            )
             guard.set_budget(daily_limit_usd=0.01, action="block")
 
             ledger = guard.ledger()
@@ -132,8 +144,9 @@ class TestGuardIntegration(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             db_path = os.path.join(tmp, "test.db")
-            guard.install(db_path=db_path, project="test", user="tester",
-                          auto_patch_openai=False)
+            guard.install(
+                db_path=db_path, project="test", user="tester", auto_patch_openai=False
+            )
             guard.set_budget(daily_limit_usd=0.01, action="warn")
 
             ledger = guard.ledger()
@@ -150,8 +163,9 @@ class TestGuardIntegration(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             db_path = os.path.join(tmp, "test.db")
-            guard.install(db_path=db_path, project="test", user="tester",
-                          auto_patch_openai=False)
+            guard.install(
+                db_path=db_path, project="test", user="tester", auto_patch_openai=False
+            )
             guard.set_budget(daily_limit_usd=10.0, action="block")
 
             gi = guard.guard_instance()
@@ -165,14 +179,18 @@ class TestErrorIsolation(unittest.TestCase):
 
     def setUp(self):
         from tokenkeeper import guard
+
         if guard.is_installed():
             guard.uninstall()
 
     def test_openai_patch_failure_doesnt_block_install(self):
         """OpenAI patch 抛异常，install() 仍完成。"""
-        with patch("tokenkeeper.integrations.openai_compat.install",
-                   side_effect=Exception("模拟 patch 失败")):
+        with patch(
+            "tokenkeeper.integrations.openai_compat.install",
+            side_effect=Exception("模拟 patch 失败"),
+        ):
             from tokenkeeper import guard
+
             with tempfile.TemporaryDirectory() as tmp:
                 db_path = os.path.join(tmp, "test.db")
                 guard.install(db_path=db_path, auto_patch_openai=True)
@@ -181,9 +199,12 @@ class TestErrorIsolation(unittest.TestCase):
 
     def test_anthropic_patch_failure_doesnt_block_install(self):
         """Anthropic patch 抛异常，install() 仍完成。"""
-        with patch("tokenkeeper.integrations.anthropic.install",
-                   side_effect=Exception("模拟 Anthropic patch 失败")):
+        with patch(
+            "tokenkeeper.integrations.anthropic.install",
+            side_effect=Exception("模拟 Anthropic patch 失败"),
+        ):
             from tokenkeeper import guard
+
             with tempfile.TemporaryDirectory() as tmp:
                 db_path = os.path.join(tmp, "test.db")
                 guard.install(db_path=db_path, auto_patch_openai=True)
@@ -192,11 +213,18 @@ class TestErrorIsolation(unittest.TestCase):
 
     def test_both_patches_fail_still_installs(self):
         """OpenAI 和 Anthropic 都失败，install() 仍完成。"""
-        with patch("tokenkeeper.integrations.openai_compat.install",
-                   side_effect=Exception("fail")), \
-             patch("tokenkeeper.integrations.anthropic.install",
-                   side_effect=Exception("fail")):
+        with (
+            patch(
+                "tokenkeeper.integrations.openai_compat.install",
+                side_effect=Exception("fail"),
+            ),
+            patch(
+                "tokenkeeper.integrations.anthropic.install",
+                side_effect=Exception("fail"),
+            ),
+        ):
             from tokenkeeper import guard
+
             with tempfile.TemporaryDirectory() as tmp:
                 db_path = os.path.join(tmp, "test.db")
                 guard.install(db_path=db_path, auto_patch_openai=True)
@@ -209,12 +237,14 @@ class TestGuardInstallUninstall(unittest.TestCase):
 
     def setUp(self):
         from tokenkeeper import guard
+
         if guard.is_installed():
             guard.uninstall()
 
     def test_install_idempotent(self):
         """重复 install 不报错。"""
         from tokenkeeper import guard
+
         with tempfile.TemporaryDirectory() as tmp:
             db_path = os.path.join(tmp, "test.db")
             guard.install(db_path=db_path, auto_patch_openai=False)
@@ -227,6 +257,7 @@ class TestGuardInstallUninstall(unittest.TestCase):
     def test_uninstall_then_reinstall(self):
         """卸载后重新安装。"""
         from tokenkeeper import guard
+
         with tempfile.TemporaryDirectory() as tmp:
             db_path = os.path.join(tmp, "test.db")
             guard.install(db_path=db_path, auto_patch_openai=False)
@@ -243,6 +274,7 @@ class TestBudgetScopeIntegration(unittest.TestCase):
 
     def setUp(self):
         from tokenkeeper import guard
+
         if guard.is_installed():
             guard.uninstall()
 
@@ -254,8 +286,12 @@ class TestBudgetScopeIntegration(unittest.TestCase):
             db_path = os.path.join(tmp, "test.db")
             guard.install(db_path=db_path, auto_patch_openai=False)
 
-            guard.set_budget(scope="project", scope_key="proj-a",
-                             daily_limit_usd=0.01, action="block")
+            guard.set_budget(
+                scope="project",
+                scope_key="proj-a",
+                daily_limit_usd=0.01,
+                action="block",
+            )
 
             ledger = guard.ledger()
             ledger.record(_make_record(cost_usd=0.02, project="proj-a", user="u1"))
@@ -276,8 +312,9 @@ class TestBudgetScopeIntegration(unittest.TestCase):
             db_path = os.path.join(tmp, "test.db")
             guard.install(db_path=db_path, auto_patch_openai=False)
 
-            guard.set_budget(scope="user", scope_key="alice",
-                             daily_limit_usd=0.01, action="block")
+            guard.set_budget(
+                scope="user", scope_key="alice", daily_limit_usd=0.01, action="block"
+            )
 
             ledger = guard.ledger()
             ledger.record(_make_record(cost_usd=0.02, project="p", user="alice"))

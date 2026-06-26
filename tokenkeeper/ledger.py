@@ -35,11 +35,9 @@ import logging
 import os
 import sqlite3
 import threading
-import time
-from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any, Optional
 
 __all__ = [
     "CallRecord",
@@ -121,7 +119,9 @@ class CallRecord:
                 f"status must be success/error/blocked, got {self.status!r}"
             )
         # 自动计算 total_tokens
-        if self.total_tokens == 0 and (self.prompt_tokens > 0 or self.completion_tokens > 0):
+        if self.total_tokens == 0 and (
+            self.prompt_tokens > 0 or self.completion_tokens > 0
+        ):
             # frozen=True 时不能直接赋值，用 object.__setattr__
             object.__setattr__(
                 self, "total_tokens", self.prompt_tokens + self.completion_tokens
@@ -224,9 +224,7 @@ class Ledger:
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            raise LedgerError(
-                f"无法创建 DB 目录 {self.db_path.parent}: {e}"
-            ) from e
+            raise LedgerError(f"无法创建 DB 目录 {self.db_path.parent}: {e}") from e
 
         # 连接 DB（check_same_thread=False 让多线程可用）
         try:
@@ -323,22 +321,39 @@ class Ledger:
         """
 
         try:
-            extra_json = json.dumps(call.extra, ensure_ascii=False) if call.extra else None
+            extra_json = (
+                json.dumps(call.extra, ensure_ascii=False) if call.extra else None
+            )
             with self._lock:
-                cur = self._conn.execute(sql, (
-                    call.timestamp, call.project, call.user,
-                    call.provider, call.model,
-                    call.prompt_tokens, call.completion_tokens,
-                    call.total_tokens, call.cached_tokens,
-                    call.cost_usd, call.cost_cny, call.latency_ms,
-                    call.status, call.error, extra_json,
-                ))
+                cur = self._conn.execute(
+                    sql,
+                    (
+                        call.timestamp,
+                        call.project,
+                        call.user,
+                        call.provider,
+                        call.model,
+                        call.prompt_tokens,
+                        call.completion_tokens,
+                        call.total_tokens,
+                        call.cached_tokens,
+                        call.cost_usd,
+                        call.cost_cny,
+                        call.latency_ms,
+                        call.status,
+                        call.error,
+                        extra_json,
+                    ),
+                )
                 self._conn.commit()
                 rowid = cur.lastrowid
             logger.debug(
                 "记账成功 [id=%d] model=%s prompt=%d completion=%d cost=$%.6f",
-                rowid, call.model, call.prompt_tokens,
-                call.completion_tokens, call.cost_usd,
+                rowid,
+                call.model,
+                call.prompt_tokens,
+                call.completion_tokens,
+                call.cost_usd,
             )
             return rowid
         except sqlite3.Error as e:
@@ -372,15 +387,27 @@ class Ledger:
         rows = []
         for call in calls:
             try:
-                rows.append((
-                    call.timestamp, call.project, call.user,
-                    call.provider, call.model,
-                    call.prompt_tokens, call.completion_tokens,
-                    call.total_tokens, call.cached_tokens,
-                    call.cost_usd, call.cost_cny, call.latency_ms,
-                    call.status, call.error,
-                    json.dumps(call.extra, ensure_ascii=False) if call.extra else None,
-                ))
+                rows.append(
+                    (
+                        call.timestamp,
+                        call.project,
+                        call.user,
+                        call.provider,
+                        call.model,
+                        call.prompt_tokens,
+                        call.completion_tokens,
+                        call.total_tokens,
+                        call.cached_tokens,
+                        call.cost_usd,
+                        call.cost_cny,
+                        call.latency_ms,
+                        call.status,
+                        call.error,
+                        json.dumps(call.extra, ensure_ascii=False)
+                        if call.extra
+                        else None,
+                    )
+                )
             except (TypeError, ValueError) as e:
                 logger.error("CallRecord 字段错误: %s", e)
                 return 0
@@ -442,7 +469,7 @@ class Ledger:
             sql += " AND project = ?"
             params.append(project)
         if user is not None:
-            sql += " AND \"user\" = ?"
+            sql += ' AND "user" = ?'
             params.append(user)
         if model is not None:
             sql += " AND model = ?"

@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -20,11 +19,12 @@ from tokenkeeper.pricing_data import BUILTIN_PRICING_RAW, PRICING_LAST_UPDATED
 # 验证规则
 # ====================================================================
 
+
 def validate():
     """验证所有价格并打印报告。返回 (errors, warnings, model_count)。"""
     errors: list[str] = []
     warnings: list[str] = []
-    
+
     models = BUILTIN_PRICING_RAW
     model_count = len(models)
 
@@ -34,7 +34,7 @@ def validate():
         prov = p.get("provider", "unknown")
         providers.setdefault(prov, []).append(name)
 
-    print(f"=== tokenkeeper 价格验证报告 ===")
+    print("=== tokenkeeper 价格验证报告 ===")
     print(f"最后更新: {PRICING_LAST_UPDATED}")
     print(f"模型总数: {model_count}")
     print(f"供应商数: {len(providers)}")
@@ -63,7 +63,7 @@ def validate():
             if out > 0 and inp / out > 3:
                 warnings.append(
                     f"[{name}] 输入价格({inp})远低于输出({out})，"
-                    f"比例 {inp/out:.2f}，请确认"
+                    f"比例 {inp / out:.2f}，请确认"
                 )
 
         # 缓存价格如果存在，应低于输入价格
@@ -119,10 +119,11 @@ def validate():
 # 修复已知问题
 # ====================================================================
 
+
 def fix_known_issues():
     """自动修复明显问题（价格取整等）。"""
     fixed = 0
-    
+
     # Claude Sonnet 4 有多个日期变体，加 alias
     # （暂时无修复项）
 
@@ -132,6 +133,7 @@ def fix_known_issues():
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="验证 tokenkeeper 价格表")
     parser.add_argument("--fix", action="store_true", help="自动修复明显错误")
     args = parser.parse_args()

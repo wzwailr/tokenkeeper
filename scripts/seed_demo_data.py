@@ -74,12 +74,14 @@ for day in range(30):
         # 偶尔有错误
         if random.random() < 0.05:
             status = "error"
-            error_msg = random.choice([
-                "rate limit exceeded",
-                "context_length_exceeded",
-                "invalid_api_key",
-                "internal_server_error",
-            ])
+            error_msg = random.choice(
+                [
+                    "rate limit exceeded",
+                    "context_length_exceeded",
+                    "invalid_api_key",
+                    "internal_server_error",
+                ]
+            )
         else:
             status = "success"
             error_msg = None
@@ -90,7 +92,9 @@ for day in range(30):
         # 写入
         record = CallRecord(
             timestamp=day_time + random.uniform(0, 86400),
-            project=random.choice(["ai-assistant", "ai-assistant", "ai-assistant", "data-pipeline"]),
+            project=random.choice(
+                ["ai-assistant", "ai-assistant", "ai-assistant", "data-pipeline"]
+            ),
             user=random.choice(["alice", "bob", "carol"]),
             provider=provider,
             model=model,
@@ -114,6 +118,7 @@ total_usd, total_cny = guard.ledger().total_cost() if False else (0, 0)
 
 # 重新打开 ledger 读总数
 from tokenkeeper.ledger import Ledger
+
 ledger2 = Ledger(db_path)
 total_usd, total_cny = ledger2.total_cost()
 print(f"总成本: ${total_usd:.4f} / ¥{total_cny:.4f}")
@@ -121,13 +126,19 @@ print(f"调用次数: {ledger2.count()}")
 print()
 print("按模型:")
 for row in ledger2.summary(group_by="model"):
-    print(f"  {row['group_key']:20s}  calls={row['calls']:>4d}  cost=${row['cost_usd']:.4f}")
+    print(
+        f"  {row['group_key']:20s}  calls={row['calls']:>4d}  cost=${row['cost_usd']:.4f}"
+    )
 print()
 print("按项目:")
 for row in ledger2.summary(group_by="project"):
-    print(f"  {row['group_key']:20s}  calls={row['calls']:>4d}  cost=${row['cost_usd']:.4f}")
+    print(
+        f"  {row['group_key']:20s}  calls={row['calls']:>4d}  cost=${row['cost_usd']:.4f}"
+    )
 print()
 print("按用户:")
 for row in ledger2.summary(group_by="user"):
-    print(f"  {row['group_key']:20s}  calls={row['calls']:>4d}  cost=${row['cost_usd']:.4f}")
+    print(
+        f"  {row['group_key']:20s}  calls={row['calls']:>4d}  cost=${row['cost_usd']:.4f}"
+    )
 ledger2.close()

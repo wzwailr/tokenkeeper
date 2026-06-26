@@ -47,9 +47,12 @@ import logging
 import os
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from typing import Any, Optional
 
-from tokenkeeper.pricing_data import BUILTIN_PRICING_RAW, PRICING_LAST_UPDATED as _PRICING_LAST_UPDATED
+from tokenkeeper.pricing_data import (
+    BUILTIN_PRICING_RAW,
+    PRICING_LAST_UPDATED as _PRICING_LAST_UPDATED,
+)
 
 __all__ = [
     "ModelPricing",
@@ -164,7 +167,9 @@ class CostBreakdown:
         if self.prompt_tokens < 0:
             raise ValueError(f"prompt_tokens must be >= 0, got {self.prompt_tokens}")
         if self.completion_tokens < 0:
-            raise ValueError(f"completion_tokens must be >= 0, got {self.completion_tokens}")
+            raise ValueError(
+                f"completion_tokens must be >= 0, got {self.completion_tokens}"
+            )
         if self.cached_tokens < 0:
             raise ValueError(f"cached_tokens must be >= 0, got {self.cached_tokens}")
 
@@ -199,7 +204,8 @@ USD_TO_CNY: float = DEFAULT_USD_TO_CNY
 # 把 raw dict 转成 ModelPricing
 # ====================================================================
 
-def _build_pricing_from_raw(raw: dict) -> ModelPricing:
+
+def _build_pricing_from_raw(raw: Any) -> ModelPricing:
     """从 raw dict 构建 ModelPricing。
 
     Args:
@@ -229,11 +235,11 @@ def _build_pricing_from_raw(raw: dict) -> ModelPricing:
 #: 注：用 dict 推导式一次性构建，避免循环引用
 _PRICING_TABLE: dict[str, ModelPricing] = {
     model: _build_pricing_from_raw(cfg)
-    for model, cfg in BUILTIN_PRICING_RAW.items()
+    for model, cfg in BUILTIN_PRICING_RAW.items()  # type: ignore[arg-type]
 }
 
 #: 价格表最后更新日期（重导出，供外部使用）
-PRICING_LAST_UPDATED: str = _PRICING_LAST_UPDATED
+PRICING_LAST_UPDATED: str = _PRICING_LAST_UPDATED  # type: ignore[no-redef]
 
 
 # ====================================================================
@@ -297,7 +303,8 @@ def _parse_env_override() -> None:
                 output_per_1m=float(cfg["output_per_1m"]),
                 cached_input_per_1m=(
                     float(cfg["cached_input_per_1m"])
-                    if "cached_input_per_1m" in cfg and cfg["cached_input_per_1m"] is not None
+                    if "cached_input_per_1m" in cfg
+                    and cfg["cached_input_per_1m"] is not None
                     else None
                 ),
                 provider=str(cfg.get("provider", "custom")),
@@ -306,7 +313,8 @@ def _parse_env_override() -> None:
             _CUSTOM_PRICING[model] = pricing
             logger.info(
                 "从环境变量 %s 加载自定义价格: %s",
-                PRICING_OVERRIDE_ENV, model,
+                PRICING_OVERRIDE_ENV,
+                model,
             )
         except (ValueError, TypeError) as e:
             raise PricingConfigError(
@@ -401,7 +409,8 @@ def calculate_cost(
         logger.warning(
             "未知模型 '%s'，无法计算成本，将记为 $0。"
             "请用 register_custom_pricing() 或环境变量 %s 注册价格。",
-            model, PRICING_OVERRIDE_ENV,
+            model,
+            PRICING_OVERRIDE_ENV,
         )
         return CostBreakdown(
             model=model,
@@ -429,21 +438,31 @@ def calculate_cost(
     if cached_tokens > prompt_tokens:
         # Anthropic 模式：cached 独立
         cost_usd_decimal = (
-            Decimal(prompt_tokens) / Decimal(1_000_000) * Decimal(str(pricing.input_per_1m))
+            Decimal(prompt_tokens)
+            / Decimal(1_000_000)
+            * Decimal(str(pricing.input_per_1m))
             + Decimal(cached_tokens) / Decimal(1_000_000) * Decimal(str(cached_price))
-            + Decimal(completion_tokens) / Decimal(1_000_000) * Decimal(str(pricing.output_per_1m))
+            + Decimal(completion_tokens)
+            / Decimal(1_000_000)
+            * Decimal(str(pricing.output_per_1m))
         )
     else:
         # OpenAI 模式：cached 是 prompt 的子集
         uncached_prompt = prompt_tokens - cached_tokens
         cost_usd_decimal = (
-            Decimal(uncached_prompt) / Decimal(1_000_000) * Decimal(str(pricing.input_per_1m))
+            Decimal(uncached_prompt)
+            / Decimal(1_000_000)
+            * Decimal(str(pricing.input_per_1m))
             + Decimal(cached_tokens) / Decimal(1_000_000) * Decimal(str(cached_price))
-            + Decimal(completion_tokens) / Decimal(1_000_000) * Decimal(str(pricing.output_per_1m))
+            + Decimal(completion_tokens)
+            / Decimal(1_000_000)
+            * Decimal(str(pricing.output_per_1m))
         )
 
     # 四舍五入到 6 位小数
-    cost_usd = float(cost_usd_decimal.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
+    cost_usd = float(
+        cost_usd_decimal.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    )
 
     # 计算 CNY
     rate = get_exchange_rate()
@@ -482,10 +501,7 @@ def list_models(provider: Optional[str] = None) -> list[str]:
     all_pricing = {**_PRICING_TABLE, **_CUSTOM_PRICING}
     if provider is None:
         return sorted(all_pricing.keys())
-    return sorted(
-        model for model, p in all_pricing.items()
-        if p.provider == provider
-    )
+    return sorted(model for model, p in all_pricing.items() if p.provider == provider)
 
 
 def register_custom_pricing(model: str, pricing: ModelPricing) -> None:
@@ -537,14 +553,18 @@ def get_exchange_rate() -> float:
             if rate <= 0:
                 logger.warning(
                     "%s=%s 不是正数，回退到默认值 %.2f",
-                    EXCHANGE_RATE_ENV, raw, DEFAULT_USD_TO_CNY,
+                    EXCHANGE_RATE_ENV,
+                    raw,
+                    DEFAULT_USD_TO_CNY,
                 )
                 return DEFAULT_USD_TO_CNY
             return rate
         except ValueError:
             logger.warning(
                 "%s=%s 不是合法数字，回退到默认值 %.2f",
-                EXCHANGE_RATE_ENV, raw, DEFAULT_USD_TO_CNY,
+                EXCHANGE_RATE_ENV,
+                raw,
+                DEFAULT_USD_TO_CNY,
             )
             return DEFAULT_USD_TO_CNY
     return USD_TO_CNY

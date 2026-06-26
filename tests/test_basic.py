@@ -24,7 +24,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tokenkeeper.pricing import (
     ModelPricing,
-    CostBreakdown,
     calculate_cost,
     get_pricing,
     list_models,
@@ -37,6 +36,7 @@ from tokenkeeper.guard import Budget, BudgetExceededError, Guard, GuardDecision
 # ====================================================================
 # 辅助：兼容 pytest 和 unittest 的 assert
 # ====================================================================
+
 
 def _approx(a, b, rel=1e-4):
     """简易 approx（pytest 没装也能用）。"""
@@ -90,14 +90,18 @@ class TestPricing(unittest.TestCase):
 
     def test_calculate_cost_basic(self):
         """基础成本计算。"""
-        cost = calculate_cost("gpt-4o", prompt_tokens=1_000_000, completion_tokens=500_000)
+        cost = calculate_cost(
+            "gpt-4o", prompt_tokens=1_000_000, completion_tokens=500_000
+        )
         # input 1M * $2.50 + output 500K * $10 = $2.50 + $5 = $7.50
         self.assertTrue(_approx(cost.cost_usd, 7.50))
         self.assertGreater(cost.cost_cny, 0)
 
     def test_calculate_cost_unknown_model_zero(self):
         """未知模型成本为 0。"""
-        cost = calculate_cost("unknown-model", prompt_tokens=1000, completion_tokens=500)
+        cost = calculate_cost(
+            "unknown-model", prompt_tokens=1000, completion_tokens=500
+        )
         self.assertEqual(cost.cost_usd, 0.0)
         self.assertEqual(cost.cost_cny, 0.0)
 
@@ -123,7 +127,12 @@ class TestPricing(unittest.TestCase):
         pricing.calculate_cost 通过 cached > prompt 自动判定为 Anthropic 模式。
         """
         # Anthropic 模式：cached > prompt 是合法的，按独立累加计费
-        cost = calculate_cost("claude-sonnet-4", prompt_tokens=100, completion_tokens=50, cached_tokens=200)
+        cost = calculate_cost(
+            "claude-sonnet-4",
+            prompt_tokens=100,
+            completion_tokens=50,
+            cached_tokens=200,
+        )
         self.assertGreater(cost.cost_usd, 0)
         self.assertEqual(cost.cached_tokens, 200)
         self.assertEqual(cost.prompt_tokens, 100)
@@ -186,14 +195,16 @@ class TestLedger(unittest.TestCase):
         """按 model/project 筛选。"""
         now = time.time()
         for i, model in enumerate(["gpt-4o", "claude-sonnet-4", "gpt-4o"]):
-            self.ledger.record(CallRecord(
-                timestamp=now + i,
-                project="app-a" if i < 2 else "app-b",
-                model=model,
-                prompt_tokens=100,
-                completion_tokens=50,
-                cost_usd=0.01,
-            ))
+            self.ledger.record(
+                CallRecord(
+                    timestamp=now + i,
+                    project="app-a" if i < 2 else "app-b",
+                    model=model,
+                    prompt_tokens=100,
+                    completion_tokens=50,
+                    cost_usd=0.01,
+                )
+            )
 
         # 按模型
         gpt_calls = self.ledger.query(model="gpt-4o")
@@ -206,20 +217,24 @@ class TestLedger(unittest.TestCase):
     def test_summary_by_model(self):
         """按模型汇总。"""
         for _ in range(3):
-            self.ledger.record(CallRecord(
+            self.ledger.record(
+                CallRecord(
+                    timestamp=time.time(),
+                    model="gpt-4o",
+                    prompt_tokens=100,
+                    completion_tokens=50,
+                    cost_usd=0.01,
+                )
+            )
+        self.ledger.record(
+            CallRecord(
                 timestamp=time.time(),
-                model="gpt-4o",
-                prompt_tokens=100,
-                completion_tokens=50,
-                cost_usd=0.01,
-            ))
-        self.ledger.record(CallRecord(
-            timestamp=time.time(),
-            model="claude-sonnet-4",
-            prompt_tokens=200,
-            completion_tokens=100,
-            cost_usd=0.02,
-        ))
+                model="claude-sonnet-4",
+                prompt_tokens=200,
+                completion_tokens=100,
+                cost_usd=0.02,
+            )
+        )
 
         summary = self.ledger.summary(group_by="model")
         self.assertEqual(len(summary), 2)
@@ -228,12 +243,20 @@ class TestLedger(unittest.TestCase):
 
     def test_total_cost(self):
         """总成本。"""
-        self.ledger.record(CallRecord(
-            timestamp=time.time(), model="gpt-4o", cost_usd=0.05,
-        ))
-        self.ledger.record(CallRecord(
-            timestamp=time.time(), model="claude-sonnet-4", cost_usd=0.10,
-        ))
+        self.ledger.record(
+            CallRecord(
+                timestamp=time.time(),
+                model="gpt-4o",
+                cost_usd=0.05,
+            )
+        )
+        self.ledger.record(
+            CallRecord(
+                timestamp=time.time(),
+                model="claude-sonnet-4",
+                cost_usd=0.10,
+            )
+        )
 
         total_usd, total_cny = self.ledger.total_cost()
         self.assertTrue(_approx(total_usd, 0.15))
@@ -242,13 +265,15 @@ class TestLedger(unittest.TestCase):
 
     def test_export_csv(self):
         """导出 CSV。"""
-        self.ledger.record(CallRecord(
-            timestamp=time.time(),
-            model="gpt-4o",
-            prompt_tokens=100,
-            completion_tokens=50,
-            cost_usd=0.01,
-        ))
+        self.ledger.record(
+            CallRecord(
+                timestamp=time.time(),
+                model="gpt-4o",
+                prompt_tokens=100,
+                completion_tokens=50,
+                cost_usd=0.01,
+            )
+        )
 
         csv_path = os.path.join(self.tmpdir, "export.csv")
         n = self.ledger.export_csv(csv_path)
@@ -260,11 +285,14 @@ class TestLedger(unittest.TestCase):
     def test_export_jsonl(self):
         """导出 JSONL。"""
         import json
-        self.ledger.record(CallRecord(
-            timestamp=time.time(),
-            model="gpt-4o",
-            cost_usd=0.01,
-        ))
+
+        self.ledger.record(
+            CallRecord(
+                timestamp=time.time(),
+                model="gpt-4o",
+                cost_usd=0.01,
+            )
+        )
 
         jsonl_path = os.path.join(self.tmpdir, "export.jsonl")
         n = self.ledger.export_jsonl(jsonl_path)
@@ -318,10 +346,14 @@ class TestGuard(unittest.TestCase):
 
     def test_per_call_budget_block(self):
         """单次预算超限 block 抛异常。"""
-        self.guard.set_budget(Budget(
-            scope="global", scope_key=None,
-            per_call_limit_usd=1.0, action="block",
-        ))
+        self.guard.set_budget(
+            Budget(
+                scope="global",
+                scope_key=None,
+                per_call_limit_usd=1.0,
+                action="block",
+            )
+        )
 
         self.assertEqual(self.guard.check(0.5), GuardDecision.ALLOW)
 
@@ -330,20 +362,28 @@ class TestGuard(unittest.TestCase):
 
     def test_per_call_budget_warn(self):
         """单次预算超限 warn 只警告。"""
-        self.guard.set_budget(Budget(
-            scope="global", scope_key=None,
-            per_call_limit_usd=1.0, action="warn",
-        ))
+        self.guard.set_budget(
+            Budget(
+                scope="global",
+                scope_key=None,
+                per_call_limit_usd=1.0,
+                action="warn",
+            )
+        )
 
         decision = self.guard.check(2.0)
         self.assertEqual(decision, GuardDecision.WARN)
 
     def test_project_scope(self):
         """项目级 scope 只匹配对应项目。"""
-        self.guard.set_budget(Budget(
-            scope="project", scope_key="app-a",
-            per_call_limit_usd=1.0, action="block",
-        ))
+        self.guard.set_budget(
+            Budget(
+                scope="project",
+                scope_key="app-a",
+                per_call_limit_usd=1.0,
+                action="block",
+            )
+        )
 
         with self.assertRaises(BudgetExceededError):
             self.guard.check(2.0, project="app-a")
@@ -381,14 +421,16 @@ class TestGracefulImport(unittest.TestCase):
         """guard.install 和 uninstall 能跑（这是 CI 验证的核心）。"""
         # 用临时 DB
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmp:
             db_path = os.path.join(tmp, "test.db")
             from tokenkeeper import guard
+
             guard.install(db_path=db_path, project="test", user="tester")
             self.assertTrue(guard.is_installed())
             guard.uninstall()
             self.assertFalse(guard.is_installed())
-            
+
             # 重新安装依然正常
             guard.install(db_path=db_path, project="test", user="tester")
             self.assertTrue(guard.is_installed())
@@ -401,18 +443,21 @@ class TestCoreIntegration(unittest.TestCase):
     def setUp(self):
         """每个测试前重置单例。"""
         from tokenkeeper import guard
+
         if guard.is_installed():
             guard.uninstall()
 
     def tearDown(self):
         """每个测试后清理。"""
         from tokenkeeper import guard
+
         if guard.is_installed():
             guard.uninstall()
 
     def test_install_uninstall_cycle(self):
         """install → uninstall 循环。"""
         from tokenkeeper import guard
+
         db_path, _ = make_temp_db()
 
         guard.install(db_path=db_path, project="test")
@@ -424,11 +469,14 @@ class TestCoreIntegration(unittest.TestCase):
     def test_record_query_via_guard(self):
         """通过 guard 单例 record + query。"""
         from tokenkeeper import guard
+
         db_path, _ = make_temp_db()
 
         guard.install(db_path=db_path, project="test")
 
-        guard.record(model="gpt-4o", prompt_tokens=100, completion_tokens=50, cost_usd=0.001)
+        guard.record(
+            model="gpt-4o", prompt_tokens=100, completion_tokens=50, cost_usd=0.001
+        )
         calls = guard.query()
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0].project, "test")
@@ -436,6 +484,7 @@ class TestCoreIntegration(unittest.TestCase):
     def test_install_idempotent(self):
         """重复 install 是幂等的。"""
         from tokenkeeper import guard
+
         db_path, _ = make_temp_db()
 
         guard.install(db_path=db_path, project="test")
@@ -447,6 +496,7 @@ class TestCoreIntegration(unittest.TestCase):
     def test_set_budget_via_guard(self):
         """通过 guard 单例 set_budget。"""
         from tokenkeeper import guard
+
         db_path, _ = make_temp_db()
 
         guard.install(db_path=db_path, project="test")
@@ -456,6 +506,7 @@ class TestCoreIntegration(unittest.TestCase):
     def test_summary_via_guard(self):
         """通过 guard 单例 summary。"""
         from tokenkeeper import guard
+
         db_path, _ = make_temp_db()
 
         guard.install(db_path=db_path, project="test")

@@ -121,7 +121,15 @@ from . import core  # noqa: E402,F401
 # 用户运行 `tokenkeeper dashboard` 时才会触发
 
 
-__all__ = sorted(set(__all__ + pricing.__all__ + ledger.__all__ + _guard_module.__all__ + core.__all__))
+__all__ = sorted(
+    set(
+        __all__
+        + pricing.__all__
+        + ledger.__all__
+        + _guard_module.__all__
+        + core.__all__
+    )
+)
 
 
 # 模块信息（方便调试）
@@ -152,6 +160,7 @@ def _banner() -> str:
 if __name__ == "__main__":
     # 模块自检
     import json
+
     print(_banner())
     print("运行时信息:")
     print(json.dumps(_info(), ensure_ascii=False, indent=2))

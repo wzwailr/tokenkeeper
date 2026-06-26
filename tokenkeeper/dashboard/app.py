@@ -30,6 +30,7 @@ import streamlit as st  # noqa: E402
 
 try:
     import pandas as pd
+
     HAS_PANDAS = True
 except ImportError:
     HAS_PANDAS = False
@@ -115,12 +116,16 @@ def get_ledger(db_path: str) -> Ledger:
 # 实际调用时从配置文件读取路径（CLI 写入的）
 def _get_db_path() -> str:
     """获取 DB 路径：优先读 CLI 写的临时配置，其次环境变量，最后默认。"""
-    import json, tempfile
+    import json
+    import tempfile
+
     cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
     try:
         with open(cfg_path) as f:
-            cfg = json.load(f)
-            return cfg.get("db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db"))
+            cfg: dict[str, str] = json.load(f)
+            return cfg.get(
+                "db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
+            )
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
 
@@ -130,7 +135,7 @@ def load_summary(group_by: str, days: int) -> list[dict]:
     """加载汇总数据（5 秒缓存）。"""
     ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
-    return ledger.summary(since=since, group_by=group_by)
+    return ledger.summary(since=since, group_by=group_by)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=5)
@@ -138,12 +143,15 @@ def load_total(days: int) -> tuple[float, float]:
     """加载总成本。"""
     ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
-    return ledger.total_cost(since=since)
+    return ledger.total_cost(since=since)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=5)
 def load_calls(
-    days: int, project: str | None, model: str | None, limit: int,
+    days: int,
+    project: str | None,
+    model: str | None,
+    limit: int,
 ) -> list[dict]:
     """加载调用记录。"""
     ledger = get_ledger(_get_db_path())
@@ -177,16 +185,22 @@ def load_daily(days: int) -> pd.DataFrame:
     if not calls:
         return pd.DataFrame(columns=["date", "cost_usd", "calls"])
 
-    df = pd.DataFrame([
-        {
-            "date": datetime.fromtimestamp(c.timestamp).date(),
-            "cost_usd": c.cost_usd,
-            "calls": 1,
-            "tokens": c.total_tokens,
-        }
-        for c in calls
-    ])
-    return df.groupby("date").agg({"cost_usd": "sum", "calls": "sum", "tokens": "sum"}).reset_index()
+    df = pd.DataFrame(
+        [
+            {
+                "date": datetime.fromtimestamp(c.timestamp).date(),
+                "cost_usd": c.cost_usd,
+                "calls": 1,
+                "tokens": c.total_tokens,
+            }
+            for c in calls
+        ]
+    )
+    return (
+        df.groupby("date")
+        .agg({"cost_usd": "sum", "calls": "sum", "tokens": "sum"})
+        .reset_index()
+    )
 
 
 # ====================================================================
@@ -219,7 +233,9 @@ def render_sidebar() -> dict:
         st.markdown("---")
         st.markdown("### 📖 文档")
         st.markdown("- [README](https://github.com/wzwailr/tokenkeeper)")
-        st.markdown("- [使用示例](https://github.com/wzwailr/tokenkeeper/blob/master/examples)")
+        st.markdown(
+            "- [使用示例](https://github.com/wzwailr/tokenkeeper/blob/master/examples)"
+        )
 
     return {"days": days, "project": project, "model": model}
 
@@ -267,7 +283,7 @@ def render_kpis(days: int) -> None:
             f'<div class="metric-label">💰 总成本</div>'
             f'<div class="metric-value">${total_usd:.4f}</div>'
             f'<div class="metric-sub">¥{total_cny:.4f}</div>'
-            f'</div>',
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -277,7 +293,7 @@ def render_kpis(days: int) -> None:
             f'<div class="metric-label">📞 调用次数</div>'
             f'<div class="metric-value">{total_calls:,}</div>'
             f'<div class="metric-sub">最近 {days} 天</div>'
-            f'</div>',
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -287,7 +303,7 @@ def render_kpis(days: int) -> None:
             f'<div class="metric-label">📊 平均成本</div>'
             f'<div class="metric-value">${avg_cost:.6f}</div>'
             f'<div class="metric-sub">每次调用</div>'
-            f'</div>',
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -297,7 +313,7 @@ def render_kpis(days: int) -> None:
             f'<div class="metric-label">⚠️ 错误率</div>'
             f'<div class="metric-value">{error_rate:.1f}%</div>'
             f'<div class="metric-sub">{errors} / {total_calls}</div>'
-            f'</div>',
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -323,12 +339,14 @@ def render_daily_trend(days: int) -> None:
     # 表格形式也展示
     with st.expander("📊 查看每日数据表"):
         st.dataframe(
-            df.rename(columns={
-                "date": "日期",
-                "cost_usd": "成本 (USD)",
-                "calls": "调用次数",
-                "tokens": "总 Token",
-            }),
+            df.rename(
+                columns={
+                    "date": "日期",
+                    "cost_usd": "成本 (USD)",
+                    "calls": "调用次数",
+                    "tokens": "总 Token",
+                }
+            ),
             use_container_width=True,
         )
 
@@ -354,19 +372,21 @@ def render_top_models(days: int) -> None:
     df_top["占比"] = (df_top["cost_usd"] / total * 100).round(1).astype(str) + "%"
 
     st.dataframe(
-        df_top.rename(columns={
-            "group_key": "模型",
-            "calls": "调用次数",
-            "prompt_tokens": "输入 token",
-            "completion_tokens": "输出 token",
-            "cached_tokens": "缓存 token",
-            "total_tokens": "总 token",
-            "cost_usd": "成本 (USD)",
-            "cost_cny": "成本 (CNY)",
-            "avg_latency_ms": "平均延迟 (ms)",
-            "errors": "错误数",
-            "blocked": "阻断数",
-        }),
+        df_top.rename(
+            columns={
+                "group_key": "模型",
+                "calls": "调用次数",
+                "prompt_tokens": "输入 token",
+                "completion_tokens": "输出 token",
+                "cached_tokens": "缓存 token",
+                "total_tokens": "总 token",
+                "cost_usd": "成本 (USD)",
+                "cost_cny": "成本 (CNY)",
+                "avg_latency_ms": "平均延迟 (ms)",
+                "errors": "错误数",
+                "blocked": "阻断数",
+            }
+        ),
         use_container_width=True,
     )
 

@@ -81,7 +81,9 @@ def main() -> None:
         print("\n[3] 汇总测试:")
         by_model = ledger.summary(group_by="model")
         for row in by_model:
-            print(f"    {row['group_key']:>25s}  calls={row['calls']:>3d}  cost=${row['cost_usd']:.4f}")
+            print(
+                f"    {row['group_key']:>25s}  calls={row['calls']:>3d}  cost=${row['cost_usd']:.4f}"
+            )
 
         by_user = ledger.summary(group_by="user")
         for row in by_user:
@@ -115,5 +117,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+    )
     main()

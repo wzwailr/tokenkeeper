@@ -97,6 +97,7 @@ def uninstall() -> None:
 
     try:
         from openai.resources.chat import completions as _chat_completions
+
         Completions = _chat_completions.Completions
         Completions.create = _original_create
         logger.info("OpenAI Completions.create 已 unpatch")
@@ -150,7 +151,9 @@ def _wrap_create(self, *args, **kwargs):
 
     # 估算输入 token 数（粗估，按字符数 / 4）
     estimated_prompt_tokens = _estimate_input_tokens(messages)
-    estimated_cost = _estimate_cost(model, estimated_prompt_tokens, estimated_completion_tokens=500)
+    estimated_cost = _estimate_cost(
+        model, estimated_prompt_tokens, estimated_completion_tokens=500
+    )
 
     # guard 检查
     project = _guard_api._project
@@ -169,7 +172,9 @@ def _wrap_create(self, *args, **kwargs):
                 break
             except Exception as e:
                 if attempt < 2:  # 还有重试机会
-                    logger.warning("guard.check() 第 %d 次失败，重试中: %s", attempt + 1, e)
+                    logger.warning(
+                        "guard.check() 第 %d 次失败，重试中: %s", attempt + 1, e
+                    )
                     time.sleep(0.5)  # 等待 500ms 再重试
                 else:
                     # 重试 2 次仍失败，fail-open
@@ -198,25 +203,27 @@ def _wrap_create(self, *args, **kwargs):
                 latency_ms = (time.time() - t0) * 1000
                 status = "error"
                 error_msg = str(e)
-                
+
                 # 错误也要记账
                 if ledger is not None:
                     try:
-                        ledger.record(_make_record(
-                            model=model,
-                            prompt_tokens=estimated_prompt_tokens,
-                            completion_tokens=0,
-                            cost_usd=0.0,
-                            cost_cny=0.0,
-                            latency_ms=latency_ms,
-                            status=status,
-                            error=error_msg,
-                            project=project,
-                            user=user,
-                        ))
+                        ledger.record(
+                            _make_record(
+                                model=model,
+                                prompt_tokens=estimated_prompt_tokens,
+                                completion_tokens=0,
+                                cost_usd=0.0,
+                                cost_cny=0.0,
+                                latency_ms=latency_ms,
+                                status=status,
+                                error=error_msg,
+                                project=project,
+                                user=user,
+                            )
+                        )
                     except Exception as le:
                         logger.error("记录失败调用失败: %s", le)
-                
+
                 raise
 
     # 流式响应：包装成"记账的流"
@@ -232,6 +239,7 @@ def _wrap_create(self, *args, **kwargs):
 
     # 计算实际成本
     from ..pricing import calculate_cost
+
     cost_breakdown = calculate_cost(
         model=actual_model,
         prompt_tokens=prompt_tokens,
@@ -242,19 +250,21 @@ def _wrap_create(self, *args, **kwargs):
     # 记账
     if ledger is not None:
         try:
-            ledger.record(_make_record(
-                model=actual_model,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                cost_usd=cost_breakdown.cost_usd,
-                cost_cny=cost_breakdown.cost_cny,
-                latency_ms=latency_ms,
-                status=status,
-                error=None,
-                project=project,
-                user=user,
-                cached_tokens=cached_tokens,
-            ))
+            ledger.record(
+                _make_record(
+                    model=actual_model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cost_usd=cost_breakdown.cost_usd,
+                    cost_cny=cost_breakdown.cost_cny,
+                    latency_ms=latency_ms,
+                    status=status,
+                    error=None,
+                    project=project,
+                    user=user,
+                    cached_tokens=cached_tokens,
+                )
+            )
         except Exception as le:
             # 记账失败不能影响业务
             logger.error("记录成功调用失败: %s", le)
@@ -262,7 +272,9 @@ def _wrap_create(self, *args, **kwargs):
     return resp
 
 
-def _wrap_stream(stream, model: str, project: str, user: str, t0: float, ledger: Optional[Any]):
+def _wrap_stream(
+    stream, model: str, project: str, user: str, t0: float, ledger: Optional[Any]
+):
     """包装流式响应，迭代完后记账。
 
     OpenAI 流式工作原理：
@@ -298,7 +310,14 @@ def _wrap_stream(stream, model: str, project: str, user: str, t0: float, ledger:
         finally:
             # 迭代完毕，记账
             _record_stream_usage(
-                ledger, model, final_model, final_usage, project, user, t0, error_occurred
+                ledger,
+                model,
+                final_model,
+                final_usage,
+                project,
+                user,
+                t0,
+                error_occurred,
             )
 
     return _iterator()
@@ -321,18 +340,20 @@ def _record_stream_usage(
     if error is not None:
         # 流式中途出错
         try:
-            ledger.record(_make_record(
-                model=requested_model,
-                prompt_tokens=0,
-                completion_tokens=0,
-                cost_usd=0.0,
-                cost_cny=0.0,
-                latency_ms=latency_ms,
-                status="error",
-                error=str(error),
-                project=project,
-                user=user,
-            ))
+            ledger.record(
+                _make_record(
+                    model=requested_model,
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    cost_usd=0.0,
+                    cost_cny=0.0,
+                    latency_ms=latency_ms,
+                    status="error",
+                    error=str(error),
+                    project=project,
+                    user=user,
+                )
+            )
         except Exception as le:
             logger.error("记录流式失败调用失败: %s", le)
         return
@@ -348,6 +369,7 @@ def _record_stream_usage(
 
     # 计算成本
     from ..pricing import calculate_cost
+
     cost_breakdown = calculate_cost(
         model=actual_model,
         prompt_tokens=prompt_tokens,
@@ -356,19 +378,21 @@ def _record_stream_usage(
     )
 
     try:
-        ledger.record(_make_record(
-            model=actual_model,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            cost_usd=cost_breakdown.cost_usd,
-            cost_cny=cost_breakdown.cost_cny,
-            latency_ms=latency_ms,
-            status="success",
-            error=None,
-            project=project,
-            user=user,
-            cached_tokens=cached_tokens,
-        ))
+        ledger.record(
+            _make_record(
+                model=actual_model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cost_usd=cost_breakdown.cost_usd,
+                cost_cny=cost_breakdown.cost_cny,
+                latency_ms=latency_ms,
+                status="success",
+                error=None,
+                project=project,
+                user=user,
+                cached_tokens=cached_tokens,
+            )
+        )
     except Exception as le:
         logger.error("记录流式成功调用失败: %s", le)
 
@@ -398,9 +422,12 @@ def _estimate_input_tokens(messages: list) -> int:
     return total_chars // 3
 
 
-def _estimate_cost(model: str, prompt_tokens: int, estimated_completion_tokens: int) -> float:
+def _estimate_cost(
+    model: str, prompt_tokens: int, estimated_completion_tokens: int
+) -> float:
     """估算本次调用成本（粗估）。"""
     from ..pricing import calculate_cost
+
     try:
         breakdown = calculate_cost(
             model=model,
@@ -462,6 +489,7 @@ def _make_record(
 ):
     """构造 CallRecord。"""
     from ..ledger import CallRecord
+
     return CallRecord(
         timestamp=time.time(),
         project=project,
