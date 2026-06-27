@@ -31,7 +31,7 @@ except ImportError:
     BaseCallbackHandler = object  # type: ignore
     LLMResult = None  # type: ignore
 
-from tokenkeeper.pricing import calculate_cost
+from tokenkeeper.capture import Usage, record_error, record_success
 
 logger = logging.getLogger(__name__)
 
@@ -106,21 +106,23 @@ class TokenKeeperCallbackHandler(BaseCallbackHandler if HAS_LANGCHAIN else objec
 
         try:
             model = self._extract_model(response)
-            prompt_tokens, completion_tokens, total_tokens = self._extract_usage(
+            prompt_tokens, completion_tokens, _total_tokens = self._extract_usage(
                 response
             )
 
-            cost = calculate_cost(model or "unknown", prompt_tokens, completion_tokens)
-
             from tokenkeeper import guard
 
-            guard.record(
+            record_success(
+                ledger=guard.ledger(),
+                provider="langchain",
                 model=model or "unknown",
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                cost_usd=cost.cost_usd,
-                cost_cny=cost.cost_cny,
+                usage=Usage(
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                ),
                 latency_ms=latency_ms,
+                project=self._project,
+                user=self._user,
             )
         except Exception as e:
             logger.error("记账失败: %s", e)
@@ -140,14 +142,15 @@ class TokenKeeperCallbackHandler(BaseCallbackHandler if HAS_LANGCHAIN else objec
         try:
             from tokenkeeper import guard
 
-            guard.record(
+            record_error(
+                ledger=guard.ledger(),
+                provider="langchain",
                 model="unknown",
                 prompt_tokens=0,
-                completion_tokens=0,
-                cost_usd=0,
-                cost_cny=0,
                 latency_ms=latency_ms,
-                status="error",
+                project=self._project,
+                user=self._user,
+                error=error,
             )
         except Exception as e:
             logger.error("记录错误调用失败: %s", e)

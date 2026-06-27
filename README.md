@@ -68,7 +68,7 @@ resp = client.chat.completions.create(
     model="gpt-4o",
     messages=[{"role": "user", "content": "Hello"}],
 )
-# ↑ 第二阶段 SDK 拦截验证通过后，这一行会被自动记账 + 限额检查
+# ↑ 受支持 SDK 路径会自动记账 + 限额检查
 ```
 
 受支持 SDK 路径的目标是低侵入接入；非 Python 进程、私有 SDK 或外部 agent 需要 callback、proxy 或 `guard.record()`。
@@ -80,7 +80,7 @@ resp = client.chat.completions.create(
 - **低侵入接入** — 支持通过 SDK patch、框架 callback 或 `guard.record()` 记录调用
 - **自动计费** — 内置 42 个模型价格表（OpenAI / Anthropic / DeepSeek / 阿里 / 智谱 / 百度 / 月之暗面 / 零一万物 / minimax），支持 $ / ¥ 双币种
 - **预算熔断** — 每日 / 每月 / 单项目 / 单用户限额，超限 block 或 warn
-- **流式支持目标** — OpenAI/Anthropic 流式调用会在第二阶段补齐端到端验证
+- **流式支持** — OpenAI/Anthropic 同进程流式调用已通过测试验证；外部进程仍需 proxy 或手动记录
 - **本地优先** — SQLite 本地存储，数据不出机器
 - **看板** — Streamlit 实时仪表盘（KPI + 趋势图 + Top 烧钱模型）
 - **错误健壮** — 网络重试、降级模式、错误隔离，patch 失败不影响原 SDK
@@ -152,7 +152,7 @@ except BudgetExceededError as e:
 
 ## 🇨🇳 国产模型（OpenAI 兼容协议）
 
-OpenAI 兼容服务的目标支持路径是通过 OpenAI Python SDK 调用，并依赖提供方返回 OpenAI 风格的 `usage` 字段。当前阶段只确认价格表和打包基线，端到端自动拦截验证放在第二阶段。
+OpenAI 兼容服务的支持路径是通过 OpenAI Python SDK 调用，并依赖提供方返回 OpenAI 风格的 `usage` 字段。第二阶段已用 `deepseek-chat` 这类 OpenAI-compatible 模型路径验证自动拦截与记账。
 
 ```python
 # DeepSeek
@@ -225,7 +225,7 @@ guard.set_budget(
 
 ## 🌊 流式调用
 
-OpenAI 和 Anthropic 流式调用是项目目标能力。阶段一尚未把流式 SDK 拦截列为已验证完成；实际完成状态以 `docs/CAPTURE_MATRIX.md` 为准。
+OpenAI 和 Anthropic 同进程流式调用已在第二阶段通过测试验证。实际完成状态以 `docs/CAPTURE_MATRIX.md` 为准。
 
 ```python
 # OpenAI 流式
@@ -237,7 +237,7 @@ stream = client.chat.completions.create(
 for chunk in stream:
     if chunk.choices[0].delta.content:
         print(chunk.choices[0].delta.content, end="")
-# ↑ 第二阶段验证通过后，流结束时记录 usage
+# ↑ 流结束时记录 usage
 
 # Anthropic 流式
 import anthropic
@@ -249,10 +249,10 @@ with client.messages.stream(
 ) as stream:
     for text in stream.text_stream:
         print(text, end="")
-# ↑ 第二阶段验证通过后，同样记录 usage
+# ↑ 流结束时同样记录 usage
 ```
 
-**工作原理目标**：tokenkeeper 劫持 `chat.completions.create` / `messages.create`，在调用完成后提取 `usage`，计算成本，写入 ledger。具体已验证范围见 `docs/CAPTURE_MATRIX.md`。
+**工作原理**：tokenkeeper 劫持 OpenAI `chat.completions.create`、Anthropic `messages.create` / `messages.stream`，在调用完成后提取 `usage`，计算成本，写入 ledger。具体已验证范围见 `docs/CAPTURE_MATRIX.md`。
 
 ---
 
@@ -370,7 +370,7 @@ guard.install(
     db_path="./tokenkeeper.db",  # SQLite 文件路径
     project="default",           # 项目标识
     user="default",              # 用户标识
-    auto_patch_openai=True,      # 是否自动 patch OpenAI SDK
+    auto_patch_openai=True,      # 是否自动 patch 受支持 SDK（OpenAI/OpenAI-compatible/Anthropic）
 )
 
 guard.set_budget(
@@ -423,7 +423,7 @@ register_custom_pricing(
 ## ❓ 常见问题
 
 ### Q1：会拖慢我的 LLM 调用吗？
-**A**：目标实现不会修改请求内容。SDK 拦截和流式路径的端到端性能验证放在第二阶段完成。
+**A**：SDK 拦截不会修改请求正文；OpenAI 流式路径会补 `stream_options.include_usage=True` 以便获得最终 usage。第二阶段已完成同进程测试验证，真实 API 性能压测不属于本阶段。
 
 ### Q2：我的 token 数据会泄露吗？
 **A**：默认调用记录存在本地 SQLite（默认 `./tokenkeeper.db`），核心记账不上传数据。启用 webhook、proxy 或外部同步时，会发生这些显式功能需要的网络请求。
@@ -480,11 +480,12 @@ tokenkeeper/
 ├── core.py          # GuardAPI 单例，install / uninstall / record / set_budget
 ├── guard.py         # Guard 预算检查逻辑
 ├── ledger.py        # Ledger SQLite 读写
+├── capture.py       # SDK/Callback 共享记账 helper
 ├── pricing.py       # 模型价格查找
 ├── pricing_data.py  # 42 个模型内置价格表
 ├── cli.py           # 命令行入口
 └── integrations/
-    ├── openai_compat.py   # OpenAI SDK patch（目标兼容 OpenAI-like 端点）
+    ├── openai_compat.py   # OpenAI SDK patch（兼容 OpenAI-like 端点）
     └── anthropic.py       # Anthropic SDK patch
 ```
 

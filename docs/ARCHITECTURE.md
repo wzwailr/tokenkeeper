@@ -2,7 +2,7 @@
 
 ## 概述
 
-tokenkeeper-ai 是一个低侵入的 AI API 成本监控库。当前阶段已验证打包、价格和本地账本基线；SDK monkey-patch、框架 callback、proxy 等捕获入口按阶段验证，真实完成范围见 `docs/CAPTURE_MATRIX.md`。
+tokenkeeper-ai 是一个低侵入的 AI API 成本监控库。当前阶段已验证打包、价格、本地账本基线，以及 OpenAI / Anthropic / LangChain 同进程捕获；proxy 等跨进程捕获入口仍按阶段验证，真实完成范围见 `docs/CAPTURE_MATRIX.md`。
 
 ## 核心模块
 
@@ -11,6 +11,7 @@ tokenkeeper/
 ├── core.py              # GuardAPI 单例 — install/uninstall/record/set_budget
 ├── guard.py             # Guard 预算检查 — daily/monthly/per_call 限额
 ├── ledger.py            # Ledger SQLite 账本 — 读写 CallRecord
+├── capture.py           # SDK/Callback 共享记账 helper
 ├── pricing.py           # 模型价格查找 — calculate_cost()
 ├── pricing_data.py      # 42 个内置模型价格表
 ├── cli.py               # 命令行入口 — tokenkeeper dashboard
@@ -48,8 +49,8 @@ tokenkeeper 劫持两个 SDK：
 |-----|-----|------|
 | OpenAI | `resources.chat.completions.Completions` | `.create()` |
 | OpenAI | `resources.chat.completions.AsyncCompletions` | `.create()` |
-| Anthropic | `Anthropic().messages` | `.create()`（第二阶段修复并验证） |
-| Anthropic | `AsyncAnthropic().messages` | `.create()`（第二阶段修复并验证） |
+| Anthropic | `resources.messages.Messages` | `.create()` / `.stream()` |
+| Anthropic | `resources.messages.AsyncMessages` | `.create()` / `.stream()` |
 
 patch 策略：**fail-open**。patch 失败只记日志，原始调用不受影响。
 

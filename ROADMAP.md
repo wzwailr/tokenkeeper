@@ -13,7 +13,7 @@
 - [x] wheel 包含 Dashboard
 - [x] 捕获范围矩阵
 
-## v0.3.0 — 计划中
+## v0.3.0 — 第二阶段已完成的同进程捕获
 
 ### LangChain Callback
 ```python
@@ -21,13 +21,18 @@ from tokenkeeper.integrations.langchain import TokenKeeperCallback
 
 llm = ChatOpenAI(callbacks=[TokenKeeperCallback(project="my-app")])
 ```
-- 目标支持 `on_llm_start` / `on_llm_end` 自动记账
-- 目标覆盖 OpenAI / Anthropic / OpenAI-compatible 国产模型，完成状态以 `docs/CAPTURE_MATRIX.md` 为准
+- 已验证 `on_llm_end` 自动记账和 `on_llm_error` 错误记录
+- 已验证 OpenAI / Anthropic / OpenAI-compatible 国产模型的同进程捕获，完成状态以 `docs/CAPTURE_MATRIX.md` 为准
 
 ### Async 支持
-- `AsyncOpenAI` 自动拦截
-- `AsyncAnthropic` 自动拦截
-- 流式 async 记账
+- [x] `AsyncOpenAI` 自动拦截
+- [x] `AsyncAnthropic` 自动拦截
+- [x] OpenAI / Anthropic 流式 async 记账
+
+## v0.4.0 — 第三阶段计划
+- OpenAI-compatible proxy，用于非 Python、外部进程和不支持 monkey-patch 的 agent
+- manual record 兜底路径增强
+- 明确标注 provider 不返回 usage 时的零 token/零成本限制
 
 ### 告警通知
 - webhook（Slack / 钉钉 / 飞书）
