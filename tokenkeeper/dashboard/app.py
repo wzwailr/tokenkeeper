@@ -28,6 +28,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st  # noqa: E402
+import streamlit.components.v1 as components  # noqa: E402
 
 try:
     import pandas as pd
@@ -125,21 +126,43 @@ def _get_db_path() -> str:
     import json
     import tempfile
 
+    argv_db = _get_db_path_from_argv()
+    if argv_db:
+        return argv_db
+
+    env_db = os.environ.get("TOKENKEEPER_DB")
+    if env_db:
+        return _normalize_db_path(env_db)
+
     cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
     try:
         with open(cfg_path) as f:
             cfg: dict[str, str] = json.load(f)
-            raw = cfg.get(
-                "db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
-            )
-            return os.path.expanduser(raw)
+            raw = cfg.get("db_path", "./tokenkeeper.db")
+            return _normalize_db_path(raw)
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
+        return _normalize_db_path("./tokenkeeper.db")
+
+
+def _get_db_path_from_argv(argv: list[str] | None = None) -> str | None:
+    args = sys.argv if argv is None else argv
+    for idx, arg in enumerate(args):
+        if arg == "--db" and idx + 1 < len(args):
+            return _normalize_db_path(args[idx + 1])
+        if arg.startswith("--db="):
+            return _normalize_db_path(arg.split("=", 1)[1])
+    return None
+
+
+def _normalize_db_path(raw: str) -> str:
+    if raw.startswith(("postgresql://", "postgres://")):
+        return raw
+    return str(Path(os.path.expanduser(raw)).resolve())
 
 
 def _sync_hermes_for_dashboard(db_path: str | None = None) -> int:
     """Sync Hermes sessions into the dashboard's active SQLite ledger."""
-    target_db = db_path or _get_db_path()
+    target_db = _normalize_db_path(db_path or _get_db_path())
     if target_db.startswith("postgresql://") or target_db.startswith("postgres://"):
         return 0
 
@@ -149,6 +172,30 @@ def _sync_hermes_for_dashboard(db_path: str | None = None) -> int:
         return sync_hermes_to_tokenkeeper(tk_db_path=target_db)
     except Exception:
         return 0
+
+
+def _sync_and_clear_dashboard_cache() -> int:
+    synced = _sync_hermes_for_dashboard()
+    st.session_state["last_hermes_sync_at"] = datetime.now().strftime("%H:%M:%S")
+    st.session_state["last_hermes_sync_changed"] = synced
+    if synced:
+        st.cache_data.clear()
+    return synced
+
+
+def _render_auto_refresh(enabled: bool, interval_seconds: int = 15) -> None:
+    if not enabled:
+        return
+    components.html(
+        f"""
+        <script>
+        window.setTimeout(function() {{
+            window.parent.location.reload();
+        }}, {interval_seconds * 1000});
+        </script>
+        """,
+        height=0,
+    )
 
 
 @st.cache_data(ttl=5)
@@ -252,13 +299,26 @@ def render_sidebar() -> dict:
         model = None if model_choice == "全部" else model_choice
 
         st.markdown("---")
+        st.markdown("### Runtime")
+        st.caption(f"DB: `{_get_db_path()}`")
+        last_sync_at = st.session_state.get("last_hermes_sync_at", "not run")
+        last_sync_changed = st.session_state.get("last_hermes_sync_changed", 0)
+        st.caption(f"Hermes sync: {last_sync_changed} changed @ {last_sync_at}")
+        auto_refresh = st.checkbox("Auto refresh", value=True)
+
+        st.markdown("---")
         st.markdown("### 📖 文档")
         st.markdown("- [README](https://github.com/wzwailr/tokenkeeper)")
         st.markdown(
             "- [使用示例](https://github.com/wzwailr/tokenkeeper/blob/master/examples)"
         )
 
-    return {"days": days, "project": project, "model": model}
+    return {
+        "days": days,
+        "project": project,
+        "model": model,
+        "auto_refresh": auto_refresh,
+    }
 
 
 @st.cache_data(ttl=10)
@@ -477,7 +537,7 @@ def render_budget_status() -> None:
 
 def main() -> None:
     """Streamlit 看板主入口。"""
-    _sync_hermes_for_dashboard()
+    _sync_and_clear_dashboard_cache()
     render_header()
 
     filters = render_sidebar()
@@ -506,6 +566,8 @@ def main() -> None:
 
     # 最近调用
     render_recent_calls(filters)
+
+    _render_auto_refresh(filters["auto_refresh"])
 
 
 if __name__ == "__main__":

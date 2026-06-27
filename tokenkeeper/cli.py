@@ -153,9 +153,11 @@ def run_dashboard(port: int, db: str) -> None:
     import tempfile
 
     # 写临时配置文件，看板进程通过它知道 DB 路径
+    db_path = _resolve_dashboard_db_path(db)
     cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
     with open(cfg_path, "w") as f:
-        json.dump({"db_path": db}, f)
+        json.dump({"db_path": db_path}, f)
+    os.environ["TOKENKEEPER_DB"] = db_path
 
     dashboard_path = os.path.join(
         os.path.dirname(__file__),
@@ -166,24 +168,34 @@ def run_dashboard(port: int, db: str) -> None:
         print(f"❌ 看板文件不存在: {dashboard_path}")
         sys.exit(1)
 
-    # 强制清除 Python 模块缓存，确保加载最新代码
-    import glob as _glob
-    import shutil as _shutil
-
-    _pkg = os.path.dirname(os.path.dirname(__file__))
-    for _d in _glob.glob(os.path.join(_pkg, "**", "__pycache__"), recursive=True):
-        _shutil.rmtree(_d, ignore_errors=True)
-
     # 自动安装 Hermes HTTP 拦截器
     try:
         from tokenkeeper.integrations.hermes_http import install as _install_http
 
-        _install_http(db)
+        _install_http(db_path)
     except Exception:
         pass
 
-    sys.argv = ["streamlit", "run", dashboard_path, "--server.port", str(port)]
+    sys.argv = [
+        "streamlit",
+        "run",
+        dashboard_path,
+        "--server.port",
+        str(port),
+        "--",
+        "--db",
+        db_path,
+    ]
     stcli.main()
+
+
+def _resolve_dashboard_db_path(db: str) -> str:
+    """Resolve dashboard SQLite paths before handing them to Streamlit."""
+    import os
+
+    if db.startswith(("postgresql://", "postgres://")):
+        return db
+    return os.path.abspath(os.path.expanduser(db))
 
 
 if __name__ == "__main__":
