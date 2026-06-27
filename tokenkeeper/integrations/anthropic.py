@@ -114,7 +114,7 @@ def uninstall() -> None:
     try:
         from anthropic.resources.messages import Messages
 
-        Messages.create = _original_anthropic_create
+        Messages.create = _original_anthropic_create  # type: ignore[method-assign]
         logger.info("Anthropic Messages.create 已 unpatch")
     except ImportError:
         pass
@@ -283,7 +283,8 @@ async def _wrap_async_create(self: Any, *args: Any, **kwargs: Any) -> Any:
 
     if _original_anthropic_create is None:
         import anthropic
-        return await anthropic.AsyncAnthropic().messages.create(self, *args, **kwargs)
+
+        return await anthropic.AsyncAnthropic().messages.create(self, *args, **kwargs)  # type: ignore[call-overload]
 
     ledger = _guard_api.ledger()
     guard_instance = _guard_api.guard_instance()
@@ -291,18 +292,23 @@ async def _wrap_async_create(self: Any, *args: Any, **kwargs: Any) -> Any:
     messages = kwargs.get("messages", [])
     system = kwargs.get("system", None)
     estimated_prompt_tokens = _estimate_input_tokens(messages, system)
-    estimated_cost = _estimate_cost(model, estimated_prompt_tokens, estimated_completion_tokens=500)
+    estimated_cost = _estimate_cost(
+        model, estimated_prompt_tokens, estimated_completion_tokens=500
+    )
 
     if guard_instance is not None:
         try:
             from tokenkeeper.guard import BudgetExceededError
+
             guard_instance.check(estimated_cost=estimated_cost)
         except BudgetExceededError:
             raise
         except Exception:
             pass
 
-    import time, asyncio
+    import time
+    import asyncio
+
     t0 = time.time()
     error_msg = None
     status = "success"
@@ -317,8 +323,16 @@ async def _wrap_async_create(self: Any, *args: Any, **kwargs: Any) -> Any:
                 latency_ms = (time.time() - t0) * 1000
                 status = "error"
                 error_msg = str(e)
-                _record_anthropic_stream(ledger, model, model, None,
-                                         _guard_api._project, _guard_api._user, t0, error_msg)
+                _record_anthropic_stream(
+                    ledger,
+                    model,
+                    model,
+                    None,
+                    _guard_api._project,
+                    _guard_api._user,
+                    t0,
+                    error_msg,
+                )
                 raise
             await asyncio.sleep(0.5 * (attempt + 1))
 
@@ -326,14 +340,30 @@ async def _wrap_async_create(self: Any, *args: Any, **kwargs: Any) -> Any:
     if resp is not None and status == "success":
         actual_model = _extract_model(resp) or model
         usage = _extract_usage(resp)
-        cost = _estimate_cost(actual_model, usage[0], usage[1])
+        from ..pricing import calculate_cost
+
+        cost = calculate_cost(
+            model=actual_model,
+            prompt_tokens=usage[0],
+            completion_tokens=usage[1],
+            cached_tokens=usage[2],
+        )
         try:
-            ledger.record(_make_record(
-                model=actual_model, prompt_tokens=usage[0],
-                completion_tokens=usage[1], cost_usd=cost.cost_usd,
-                cost_cny=cost.cost_cny, latency_ms=latency_ms,
-                project=_guard_api._project, user=_guard_api._user,
-            ))
+            ledger.record(
+                _make_record(
+                    model=actual_model,
+                    prompt_tokens=usage[0],
+                    completion_tokens=usage[1],
+                    cost_usd=cost.cost_usd,
+                    cost_cny=cost.cost_cny,
+                    latency_ms=latency_ms,
+                    project=_guard_api._project,
+                    user=_guard_api._user,
+                    status="success",
+                    error=None,
+                    cached_tokens=usage[2],
+                )
+            )
         except Exception:
             pass
 

@@ -36,9 +36,7 @@ classifiers = [
     "Topic :: Office/Business :: Financial",
 ]
 
-dependencies = [
-    "streamlit>=1.30.0; extra == 'dashboard'",
-]
+dependencies = []
 
 [project.optional-dependencies]
 # 看板依赖（用 streamlit 时才需要）
@@ -91,8 +89,8 @@ Issues = "https://github.com/wzwailr/tokenkeeper/issues"
 # 命令行入口
 tokenkeeper = "tokenkeeper.cli:main"
 
-[tool.setuptools]
-packages = ["tokenkeeper", "tokenkeeper.integrations"]
+[tool.setuptools.packages.find]
+include = ["tokenkeeper*"]
 
 [tool.setuptools.package-data]
 tokenkeeper = ["py.typed"]
@@ -105,7 +103,7 @@ python_functions = ["test_*"]
 addopts = "-ra -q --strict-markers"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

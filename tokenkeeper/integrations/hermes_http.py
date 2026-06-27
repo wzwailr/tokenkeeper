@@ -20,7 +20,7 @@ import logging
 import time
 import urllib.request
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ _guard_installed: bool = False
 _callbacks: list = []
 
 API_PATTERNS = [
-    "/chat/completions",   # OpenAI compatible
-    "/v1/messages",        # Anthropic
-    "/v1/chat/completions",# DeepSeek / 国产模型
+    "/chat/completions",  # OpenAI compatible
+    "/v1/messages",  # Anthropic
+    "/v1/chat/completions",  # DeepSeek / 国产模型
 ]
 
 
@@ -49,6 +49,7 @@ def install(db_path: str = "~/.hermes/tokenkeeper.db") -> bool:
     # 确保 tokenkeeper 已安装
     try:
         from tokenkeeper.core import guard as api
+
         db = os.path.expanduser(db_path)
         if not api.is_installed():
             api.install(db_path=db, project="hermes", user="me")
@@ -64,8 +65,9 @@ def install(db_path: str = "~/.hermes/tokenkeeper.db") -> bool:
 
     _original_open = urllib.request.OpenerDirector.open
 
-    def _patched_open(self: Any, fullurl: Any, data: Any = None,
-                      timeout: Any = None) -> Any:
+    def _patched_open(
+        self: Any, fullurl: Any, data: Any = None, timeout: Any = None
+    ) -> Any:
         return _intercept_and_record(self, fullurl, data, timeout)
 
     urllib.request.OpenerDirector.open = _patched_open  # type: ignore
@@ -77,15 +79,14 @@ def uninstall() -> None:
     """卸载 HTTP 拦截器。"""
     global _original_open
     if _original_open is not None:
-        urllib.request.OpenerDirector.open = _original_open
+        urllib.request.OpenerDirector.open = _original_open  # type: ignore[method-assign]
         _original_open = None
         logger.info("Hermes HTTP 拦截器已卸载")
 
 
-def _intercept_and_record(self: Any, fullurl: Any, data: Any,
-                          timeout: Any) -> Any:
+def _intercept_and_record(self: Any, fullurl: Any, data: Any, timeout: Any) -> Any:
     """拦截并记录 API 调用。"""
-    url = str(fullurl) if hasattr(fullurl, 'full_url') else str(fullurl)
+    url = str(fullurl) if hasattr(fullurl, "full_url") else str(fullurl)
 
     # 检查是否是 LLM API 调用
     is_llm = any(p in url for p in API_PATTERNS)
@@ -110,7 +111,7 @@ def _intercept_and_record(self: Any, fullurl: Any, data: Any,
     # 调用原始方法
     try:
         resp = _original_open(self, fullurl, data, timeout)
-    except Exception as e:
+    except Exception:
         _record_call(model, 0, 0, "error", (time.time() - t0) * 1000)
         raise
 
@@ -130,8 +131,10 @@ def _intercept_and_record(self: Any, fullurl: Any, data: Any,
             prompt_tokens = prompt_estimate
 
         # 重新封装 response（因为已经 read 了）
-        resp = urllib.request.addinfourl(
-            BytesIO(body_text) if isinstance(body_text, bytes) else BytesIO(body_text.encode()),
+        resp = urllib.request.addinfourl(  # type: ignore[attr-defined]
+            BytesIO(body_text)
+            if isinstance(body_text, bytes)
+            else BytesIO(body_text.encode()),
             resp.headers,
             resp.url,
             resp.code,
@@ -144,11 +147,13 @@ def _intercept_and_record(self: Any, fullurl: Any, data: Any,
     return resp
 
 
-def _record_call(model: str, prompt: int, completion: int,
-                 status: str, latency_ms: float) -> None:
+def _record_call(
+    model: str, prompt: int, completion: int, status: str, latency_ms: float
+) -> None:
     """记录调用到 tokenkeeper。"""
     try:
         from tokenkeeper.core import guard as api
+
         api.record(
             model=model,
             prompt_tokens=prompt,

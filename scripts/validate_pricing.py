@@ -96,18 +96,18 @@ def validate():
 
     # 打印错误和警告
     if errors:
-        print(f"❌ 错误 ({len(errors)}):")
+        print(f"[ERROR] 错误 ({len(errors)}):")
         for e in errors:
             print(f"   {e}")
     else:
-        print("✅ 无错误")
+        print("[OK] 无错误")
 
     if warnings:
-        print(f"⚠️  警告 ({len(warnings)}):")
+        print(f"[WARN] 警告 ({len(warnings)}):")
         for w in warnings:
             print(f"   {w}")
     else:
-        print("✅ 无警告")
+        print("[OK] 无警告")
 
     print()
     print(f"总结: {model_count} models, {len(errors)} errors, {len(warnings)} warnings")

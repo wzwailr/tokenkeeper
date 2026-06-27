@@ -2,13 +2,16 @@
 
 ## v0.2.x (当前) — 2026-06
 
-- [x] Azure 支持
-- [x] 流式调用自动记账
-- [x] 错误健壮化（重试+降级）
+- [ ] Azure 支持端到端验证
+- [ ] 流式调用自动记账端到端验证
+- [ ] SDK 错误路径端到端验证
 - [x] py.typed + pre-commit
 - [x] CONTRIBUTING / SECURITY / CoC
 - [x] Dockerfile
-- [x] 结构化日志
+- [ ] 结构化日志端到端验证
+- [x] 包版本一致性
+- [x] wheel 包含 Dashboard
+- [x] 捕获范围矩阵
 
 ## v0.3.0 — 计划中
 
@@ -18,8 +21,8 @@ from tokenkeeper.integrations.langchain import TokenKeeperCallback
 
 llm = ChatOpenAI(callbacks=[TokenKeeperCallback(project="my-app")])
 ```
-- 支持 `on_llm_start` / `on_llm_end` 自动记账
-- 覆盖 OpenAI / Anthropic / 国产模型
+- 目标支持 `on_llm_start` / `on_llm_end` 自动记账
+- 目标覆盖 OpenAI / Anthropic / OpenAI-compatible 国产模型，完成状态以 `docs/CAPTURE_MATRIX.md` 为准
 
 ### Async 支持
 - `AsyncOpenAI` 自动拦截

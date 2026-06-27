@@ -14,7 +14,7 @@ https://github.com/wzwailr/tokenkeeper/security/advisories/new
 tokenkeeper-ai 的安全原则：
 
 - **数据不出机器** — 所有调用记录存在本地 SQLite，不上传任何服务器
-- **无网络调用** — tokenkeeper 本身不发起任何外部网络请求（LLM 调用由你的 openai/anthropic SDK 发起，tokenkeeper 只拦截）
+- **核心记账不上传** — tokenkeeper core accounting 不上传调用记录。启用 webhook 告警、proxy 或外部同步功能时，tokenkeeper 会发起这些显式功能所需的网络请求。
 - **最小权限** — monkey-patch 只修改 `create()` 方法签名，不读取、不修改你的 API key
 - **fail-open** — patch 失败不影响原始 SDK 调用，只是不记账
 

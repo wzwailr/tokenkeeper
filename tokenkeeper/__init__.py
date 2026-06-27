@@ -43,7 +43,8 @@ Quickstart（5 行接入）::
 from __future__ import annotations
 
 # 版本号遵循语义化版本（semver.org）
-__version__ = "0.1.0"
+from ._version import __version__  # noqa: E402
+
 __author__ = "tokenkeeper contributors"
 
 __all__ = [
@@ -121,13 +122,7 @@ from . import core  # noqa: E402,F401
 
 
 __all__ = sorted(
-    set(
-        __all__
-        + pricing.__all__
-        + ledger.__all__
-        + _guard_mod.__all__
-        + core.__all__
-    )
+    set(__all__ + pricing.__all__ + ledger.__all__ + _guard_mod.__all__ + core.__all__)
 )
 
 

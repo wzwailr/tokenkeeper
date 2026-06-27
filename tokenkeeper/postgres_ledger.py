@@ -13,12 +13,12 @@ from __future__ import annotations
 import json
 import logging
 import threading
-import time
 from typing import Any, Optional
 
 try:
     import psycopg2
     import psycopg2.extras
+
     HAS_PSYCOPG2 = True
 except ImportError:
     HAS_PSYCOPG2 = False
@@ -119,15 +119,26 @@ class PostgresLedger:
         try:
             with self._lock:
                 with self._conn.cursor() as cur:
-                    cur.execute(sql, (
-                        call.timestamp, call.project, call.user,
-                        call.provider, call.model,
-                        call.prompt_tokens, call.completion_tokens,
-                        call.total_tokens, call.cached_tokens,
-                        call.cost_usd, call.cost_cny, call.latency_ms,
-                        call.status, call.error,
-                        json.dumps(call.extra) if call.extra else None,
-                    ))
+                    cur.execute(
+                        sql,
+                        (
+                            call.timestamp,
+                            call.project,
+                            call.user,
+                            call.provider,
+                            call.model,
+                            call.prompt_tokens,
+                            call.completion_tokens,
+                            call.total_tokens,
+                            call.cached_tokens,
+                            call.cost_usd,
+                            call.cost_cny,
+                            call.latency_ms,
+                            call.status,
+                            call.error,
+                            json.dumps(call.extra) if call.extra else None,
+                        ),
+                    )
                     row = cur.fetchone()
                 self._conn.commit()
             return row[0] if row else None
@@ -145,21 +156,32 @@ class PostgresLedger:
             with self._lock:
                 with self._conn.cursor() as cur:
                     for call in calls:
-                        cur.execute("""
+                        cur.execute(
+                            """
                         INSERT INTO calls (
                             timestamp, project, "user", provider, model,
                             prompt_tokens, completion_tokens, total_tokens, cached_tokens,
                             cost_usd, cost_cny, latency_ms, status, error, extra
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            call.timestamp, call.project, call.user,
-                            call.provider, call.model,
-                            call.prompt_tokens, call.completion_tokens,
-                            call.total_tokens, call.cached_tokens,
-                            call.cost_usd, call.cost_cny, call.latency_ms,
-                            call.status, call.error,
-                            json.dumps(call.extra) if call.extra else None,
-                        ))
+                        """,
+                            (
+                                call.timestamp,
+                                call.project,
+                                call.user,
+                                call.provider,
+                                call.model,
+                                call.prompt_tokens,
+                                call.completion_tokens,
+                                call.total_tokens,
+                                call.cached_tokens,
+                                call.cost_usd,
+                                call.cost_cny,
+                                call.latency_ms,
+                                call.status,
+                                call.error,
+                                json.dumps(call.extra) if call.extra else None,
+                            ),
+                        )
                         count += 1
                 self._conn.commit()
         except Exception as e:
@@ -209,7 +231,9 @@ class PostgresLedger:
         params.append(limit)
 
         try:
-            with self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            with self._conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
                 cur.execute(sql, params)
                 rows = cur.fetchall()
             return [
@@ -228,7 +252,7 @@ class PostgresLedger:
                     latency_ms=row["latency_ms"],
                     status=row["status"],
                     error=row["error"],
-                    extra=json.loads(row["extra"]) if row["extra"] else None,
+                    extra=json.loads(row["extra"]) if row["extra"] else {},
                 )
                 for row in rows
             ]
@@ -286,7 +310,9 @@ class PostgresLedger:
         sql += " GROUP BY group_key ORDER BY cost_usd DESC"
 
         try:
-            with self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            with self._conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
                 cur.execute(sql, params)
                 rows = cur.fetchall()
             return [dict(row) for row in rows]

@@ -106,7 +106,7 @@ def uninstall() -> None:
         from openai.resources.chat import completions as _chat_completions
 
         Completions = _chat_completions.Completions
-        Completions.create = _original_create
+        Completions.create = _original_create  # type: ignore[method-assign]
         logger.info("OpenAI Completions.create 已 unpatch")
     except ImportError:
         pass
@@ -296,7 +296,9 @@ async def _wrap_async_create(self, *args, **kwargs):
     # 估算成本
     messages = kwargs.get("messages", [])
     estimated_prompt_tokens = _estimate_input_tokens(messages)
-    estimated_cost = _estimate_cost(model, estimated_prompt_tokens, estimated_completion_tokens=500)
+    estimated_cost = _estimate_cost(
+        model, estimated_prompt_tokens, estimated_completion_tokens=500
+    )
 
     # guard 检查
     ledger = _guard_api.ledger()
@@ -304,6 +306,7 @@ async def _wrap_async_create(self, *args, **kwargs):
     if guard_instance is not None:
         try:
             from tokenkeeper.guard import BudgetExceededError
+
             guard_instance.check(estimated_cost=estimated_cost)
         except BudgetExceededError:
             raise
@@ -312,6 +315,7 @@ async def _wrap_async_create(self, *args, **kwargs):
 
     # 调用原始 async create
     import time
+
     t0 = time.time()
     error_msg = None
     status = "success"
@@ -328,15 +332,23 @@ async def _wrap_async_create(self, *args, **kwargs):
                 error_msg = str(e)
                 if ledger is not None:
                     try:
-                        ledger.record(_make_record(
-                            model=model, prompt_tokens=0, completion_tokens=0,
-                            cost_usd=0, cost_cny=0, latency_ms=latency_ms,
-                            status="error", error=error_msg,
-                        ))
+                        ledger.record(
+                            _make_record(
+                                model=model,
+                                prompt_tokens=0,
+                                completion_tokens=0,
+                                cost_usd=0,
+                                cost_cny=0,
+                                latency_ms=latency_ms,
+                                status="error",
+                                error=error_msg,
+                            )
+                        )
                     except Exception:
                         pass
                 raise
             import asyncio
+
             await asyncio.sleep(0.5 * (attempt + 1))
 
     # 提取真实 usage 并记账
@@ -348,16 +360,18 @@ async def _wrap_async_create(self, *args, **kwargs):
 
         if ledger is not None:
             try:
-                ledger.record(_make_record(
-                    model=actual_model,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    cost_usd=cost_breakdown.cost_usd,
-                    cost_cny=cost_breakdown.cost_cny,
-                    latency_ms=latency_ms,
-                    status="success",
-                    error=None,
-                ))
+                ledger.record(
+                    _make_record(
+                        model=actual_model,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        cost_usd=cost_breakdown.cost_usd,
+                        cost_cny=cost_breakdown.cost_cny,
+                        latency_ms=latency_ms,
+                        status="success",
+                        error=None,
+                    )
+                )
             except Exception as e:
                 logger.error("记账失败: %s", e)
 

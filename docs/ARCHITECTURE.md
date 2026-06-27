@@ -2,7 +2,7 @@
 
 ## 概述
 
-tokenkeeper-ai 是一个零侵入的 AI API 成本监控库。通过 monkey-patch OpenAI/Anthropic SDK，在业务代码零改动的情况下自动记账。
+tokenkeeper-ai 是一个低侵入的 AI API 成本监控库。当前阶段已验证打包、价格和本地账本基线；SDK monkey-patch、框架 callback、proxy 等捕获入口按阶段验证，真实完成范围见 `docs/CAPTURE_MATRIX.md`。
 
 ## 核心模块
 
@@ -48,8 +48,8 @@ tokenkeeper 劫持两个 SDK：
 |-----|-----|------|
 | OpenAI | `resources.chat.completions.Completions` | `.create()` |
 | OpenAI | `resources.chat.completions.AsyncCompletions` | `.create()` |
-| Anthropic | `Anthropic().messages` | `.create()` |
-| Anthropic | `AsyncAnthropic().messages` | `.create()` |
+| Anthropic | `Anthropic().messages` | `.create()`（第二阶段修复并验证） |
+| Anthropic | `AsyncAnthropic().messages` | `.create()`（第二阶段修复并验证） |
 
 patch 策略：**fail-open**。patch 失败只记日志，原始调用不受影响。
 

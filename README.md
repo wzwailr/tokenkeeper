@@ -4,7 +4,7 @@
 
 **AI API 成本监控与限流守护者**
 
-让任何 AI 应用开发者自动获得 token 统计、成本追踪、预算限额与熔断保护
+让 AI 应用开发者在受支持 SDK、框架适配器或手动记录路径中获得 token 统计、成本追踪、预算限额与熔断保护
 
 [![PyPI version](https://img.shields.io/pypi/v/tokenkeeper-ai)](https://pypi.org/project/tokenkeeper-ai/)
 [![Python](https://img.shields.io/pypi/pyversions/tokenkeeper-ai)](https://pypi.org/project/tokenkeeper-ai/)
@@ -61,26 +61,26 @@ from tokenkeeper import guard
 guard.install(project="my-ai-app")
 guard.set_budget(daily_limit_usd=10.0, action="block")  # 超 $10/天自动停
 
-# 3. 业务代码 0 改动
+# 3. 受支持 OpenAI SDK 路径中，业务调用代码保持不变
 import openai
 client = openai.OpenAI()          # 你的原有代码
 resp = client.chat.completions.create(
     model="gpt-4o",
     messages=[{"role": "user", "content": "Hello"}],
 )
-# ↑ 这一行就被自动记账 + 限额检查
+# ↑ 第二阶段 SDK 拦截验证通过后，这一行会被自动记账 + 限额检查
 ```
 
-**就这么多。** 不需要改任何业务逻辑。
+受支持 SDK 路径的目标是低侵入接入；非 Python 进程、私有 SDK 或外部 agent 需要 callback、proxy 或 `guard.record()`。
 
 ---
 
 ## ✨ 功能特性
 
-- **零侵入** — monkey-patch OpenAI/Anthropic SDK，业务代码零改动
+- **低侵入接入** — 支持通过 SDK patch、框架 callback 或 `guard.record()` 记录调用
 - **自动计费** — 内置 42 个模型价格表（OpenAI / Anthropic / DeepSeek / 阿里 / 智谱 / 百度 / 月之暗面 / 零一万物 / minimax），支持 $ / ¥ 双币种
 - **预算熔断** — 每日 / 每月 / 单项目 / 单用户限额，超限 block 或 warn
-- **流式支持** — OpenAI/Anthropic 流式调用自动记账
+- **流式支持目标** — OpenAI/Anthropic 流式调用会在第二阶段补齐端到端验证
 - **本地优先** — SQLite 本地存储，数据不出机器
 - **看板** — Streamlit 实时仪表盘（KPI + 趋势图 + Top 烧钱模型）
 - **错误健壮** — 网络重试、降级模式、错误隔离，patch 失败不影响原 SDK
@@ -152,7 +152,7 @@ except BudgetExceededError as e:
 
 ## 🇨🇳 国产模型（OpenAI 兼容协议）
 
-任何 OpenAI 兼容服务都自动支持——**只需改 `base_url`**：
+OpenAI 兼容服务的目标支持路径是通过 OpenAI Python SDK 调用，并依赖提供方返回 OpenAI 风格的 `usage` 字段。当前阶段只确认价格表和打包基线，端到端自动拦截验证放在第二阶段。
 
 ```python
 # DeepSeek
@@ -225,7 +225,7 @@ guard.set_budget(
 
 ## 🌊 流式调用
 
-OpenAI 和 Anthropic 流式调用自动记账——**无需额外配置**：
+OpenAI 和 Anthropic 流式调用是项目目标能力。阶段一尚未把流式 SDK 拦截列为已验证完成；实际完成状态以 `docs/CAPTURE_MATRIX.md` 为准。
 
 ```python
 # OpenAI 流式
@@ -237,7 +237,7 @@ stream = client.chat.completions.create(
 for chunk in stream:
     if chunk.choices[0].delta.content:
         print(chunk.choices[0].delta.content, end="")
-# ↑ 流结束后自动记账
+# ↑ 第二阶段验证通过后，流结束时记录 usage
 
 # Anthropic 流式
 import anthropic
@@ -249,10 +249,16 @@ with client.messages.stream(
 ) as stream:
     for text in stream.text_stream:
         print(text, end="")
-# ↑ 同样自动记账
+# ↑ 第二阶段验证通过后，同样记录 usage
 ```
 
-**工作原理**：tokenkeeper 劫持 `chat.completions.create` / `messages.create`，在调用完成后提取 `usage`，计算成本，写入 ledger。流式调用对上层代码完全透明。
+**工作原理目标**：tokenkeeper 劫持 `chat.completions.create` / `messages.create`，在调用完成后提取 `usage`，计算成本，写入 ledger。具体已验证范围见 `docs/CAPTURE_MATRIX.md`。
+
+---
+
+## 🧭 捕获范围
+
+tokenkeeper 自动统计只覆盖受支持 SDK、同进程框架适配器，或显式接入路径。任意 agent、任意语言运行时、桌面应用、SaaS agent、私有二进制进程无法被 Python monkey-patch 静默捕获；这些场景需要 proxy、callback、`guard.record()` 或状态库同步。
 
 ---
 
@@ -417,13 +423,13 @@ register_custom_pricing(
 ## ❓ 常见问题
 
 ### Q1：会拖慢我的 LLM 调用吗？
-**A**：不会。拦截器只是包一层（<1ms 开销），不修改请求内容。流式调用也是调用完成后记账，不阻塞 streaming。
+**A**：目标实现不会修改请求内容。SDK 拦截和流式路径的端到端性能验证放在第二阶段完成。
 
 ### Q2：我的 token 数据会泄露吗？
-**A**：不会。所有数据存在本地 SQLite（默认 `./tokenkeeper.db`），不连接任何云服务。
+**A**：默认调用记录存在本地 SQLite（默认 `./tokenkeeper.db`），核心记账不上传数据。启用 webhook、proxy 或外部同步时，会发生这些显式功能需要的网络请求。
 
 ### Q3：支持哪些模型？
-**A**：42 个内置模型。覆盖 OpenAI、Anthropic、DeepSeek、阿里、智谱、百度、月之暗面、零一万物、minimax。任何 OpenAI 兼容协议的端点都自动工作。
+**A**：42 个内置模型。覆盖 OpenAI、Anthropic、DeepSeek、阿里、智谱、百度、月之暗面、零一万物、minimax。OpenAI 兼容协议端点需要通过受支持 SDK 或后续 proxy 路径接入，并返回可解析 usage 才能自动统计。
 
 ### Q4：怎么区分不同项目/用户的费用？
 **A**：`guard.install()` 时设 `project="..."` 和 `user="..."`，看板上按这两个维度筛选。
@@ -478,7 +484,7 @@ tokenkeeper/
 ├── pricing_data.py  # 42 个模型内置价格表
 ├── cli.py           # 命令行入口
 └── integrations/
-    ├── openai_compat.py   # OpenAI SDK patch（兼容所有 OpenAI-like 端点）
+    ├── openai_compat.py   # OpenAI SDK patch（目标兼容 OpenAI-like 端点）
     └── anthropic.py       # Anthropic SDK patch
 ```
 

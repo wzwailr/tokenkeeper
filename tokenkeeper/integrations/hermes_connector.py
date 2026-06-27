@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sqlite3
 import time
 from pathlib import Path
@@ -60,7 +59,6 @@ def sync_hermes_to_tokenkeeper(
 
     # 导入 tokenkeeper
     from tokenkeeper.core import guard as api
-    from tokenkeeper.ledger import Ledger
 
     # 确保 tokenkeeper 已安装
     if not _ensure_tk_installed(str(tk_db)):
@@ -68,6 +66,10 @@ def sync_hermes_to_tokenkeeper(
         return 0
 
     ledger = api.ledger()
+    if ledger is None:
+        hermes_conn.close()
+        logger.error("tokenkeeper ledger 未初始化")
+        return 0
 
     # 查 tokenkeeper 已有的 session ID（避免重复导入）
     existing = set()
@@ -80,6 +82,7 @@ def sync_hermes_to_tokenkeeper(
         for row in rows:
             try:
                 import json
+
                 extra = json.loads(row["extra"])
                 if "hermes_session_id" in extra:
                     existing.add(extra["hermes_session_id"])
@@ -127,7 +130,10 @@ def sync_hermes_to_tokenkeeper(
         if isinstance(timestamp, str):
             try:
                 from datetime import datetime
-                timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).timestamp()
+
+                timestamp = datetime.fromisoformat(
+                    timestamp.replace("Z", "+00:00")
+                ).timestamp()
             except (ValueError, AttributeError):
                 timestamp = time.time()
 
@@ -162,6 +168,7 @@ def sync_hermes_to_tokenkeeper(
 def _ensure_tk_installed(db_path: str) -> bool:
     """确保 tokenkeeper 已安装。"""
     from tokenkeeper.core import guard as api
+
     try:
         if not api.is_installed():
             api.install(db_path=db_path, project="hermes", user="me")

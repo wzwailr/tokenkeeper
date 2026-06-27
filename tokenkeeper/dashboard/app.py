@@ -22,6 +22,7 @@ import os
 import time
 from datetime import datetime, date
 from pathlib import Path
+from typing import Any
 
 # 让 streamlit 能 import tokenkeeper 包
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -38,23 +39,14 @@ except ImportError:
 from tokenkeeper import guard  # noqa: E402,F401
 from tokenkeeper.ledger import Ledger  # noqa: E402
 from tokenkeeper.pricing import PRICING_LAST_UPDATED, list_models  # noqa: E402
-# 强制清除模块缓存，确保加载最新代码
-import glob as _g, shutil as _s, importlib as _il, sys as _sys
-_pkg = os.path.dirname(os.path.dirname(__file__))
-for _d in _g.glob(os.path.join(_pkg, "**", "__pycache__"), recursive=True):
-    _s.rmtree(_d, ignore_errors=True)
-for _k in list(_sys.modules):
-    if 'tokenkeeper' in _k:
-        del _sys.modules[_k]
 
 # 同步 Hermes 最新数据
 try:
     from tokenkeeper.integrations.hermes_connector import sync_hermes_to_tokenkeeper
+
     sync_hermes_to_tokenkeeper()
 except Exception:
     pass
-
-
 
 
 # ====================================================================
@@ -130,6 +122,7 @@ def get_ledger(db_path: str) -> Any:
     """
     if db_path.startswith("postgresql://") or db_path.startswith("postgres://"):
         from tokenkeeper.postgres_ledger import PostgresLedger
+
         return PostgresLedger(db_path)
     return Ledger(db_path)
 
@@ -144,7 +137,9 @@ def _get_db_path() -> str:
     try:
         with open(cfg_path) as f:
             cfg: dict[str, str] = json.load(f)
-            raw = cfg.get("db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db"))
+            raw = cfg.get(
+                "db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
+            )
             return os.path.expanduser(raw)
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
