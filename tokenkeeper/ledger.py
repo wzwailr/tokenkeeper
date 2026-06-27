@@ -488,7 +488,13 @@ class Ledger:
             with self._lock:
                 cur = self._conn.execute(sql, params)
                 rows = cur.fetchall()
-            return [self._row_to_record(row) for row in rows]
+            result = []
+            for row in rows:
+                try:
+                    result.append(self._row_to_record(row))
+                except ValueError:
+                    pass  # skip records with cache > prompt tokens
+            return result
         except sqlite3.Error as e:
             logger.error("查询失败: %s", e)
             return []
