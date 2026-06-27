@@ -38,6 +38,23 @@ except ImportError:
 from tokenkeeper import guard  # noqa: E402,F401
 from tokenkeeper.ledger import Ledger  # noqa: E402
 from tokenkeeper.pricing import PRICING_LAST_UPDATED, list_models  # noqa: E402
+# 强制清除模块缓存，确保加载最新代码
+import glob as _g, shutil as _s, importlib as _il, sys as _sys
+_pkg = os.path.dirname(os.path.dirname(__file__))
+for _d in _g.glob(os.path.join(_pkg, "**", "__pycache__"), recursive=True):
+    _s.rmtree(_d, ignore_errors=True)
+for _k in list(_sys.modules):
+    if 'tokenkeeper' in _k:
+        del _sys.modules[_k]
+
+# 同步 Hermes 最新数据
+try:
+    from tokenkeeper.integrations.hermes_connector import sync_hermes_to_tokenkeeper
+    sync_hermes_to_tokenkeeper()
+except Exception:
+    pass
+
+
 
 
 # ====================================================================
@@ -159,10 +176,7 @@ def load_calls(
     """加载调用记录。"""
     ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
-    try:
-        calls = ledger.query(since=since, project=project, model=model, limit=limit)
-    except Exception:
-        return []
+    calls = ledger.query(since=since, project=project, model=model, limit=limit)
     return [
         {
             "时间": datetime.fromtimestamp(c.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
@@ -186,11 +200,7 @@ def load_daily(days: int) -> pd.DataFrame:
     """加载每日成本时间序列。"""
     ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
-    try:
-        calls = ledger.query(since=since, limit=100_000)
-    except Exception as e:
-        st.warning(f"查询失败: {e}")
-        return pd.DataFrame(columns=["date", "cost_usd", "calls"])
+    calls = ledger.query(since=since, limit=100_000)
 
     if not calls:
         return pd.DataFrame(columns=["date", "cost_usd", "calls"])
