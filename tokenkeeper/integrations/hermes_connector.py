@@ -25,6 +25,7 @@ def _get_hermes_db() -> Path:
 def sync_hermes_to_tokenkeeper(
     hermes_db_path: Optional[str] = None,
     tk_db_path: str = "~/.hermes/tokenkeeper.db",
+    since: float | None = None,
 ) -> int:
     """Import or update Hermes session usage rows in the selected ledger.
 
@@ -45,8 +46,7 @@ def sync_hermes_to_tokenkeeper(
         return 0
 
     try:
-        sessions = hermes_conn.execute(
-            """
+        sql = """
             SELECT
                 s.id, s.title, s.billing_provider, s.model,
                 s.input_tokens, s.output_tokens,
@@ -65,9 +65,15 @@ def sync_hermes_to_tokenkeeper(
                 OR COALESCE(s.output_tokens, 0) > 0
                 OR COALESCE(s.cache_read_tokens, 0) > 0
             )
-            ORDER BY COALESCE(m.last_message_at, s.ended_at, s.started_at) DESC
             """
-        ).fetchall()
+        params: list[float] = []
+        if since is not None:
+            sql += """
+            AND COALESCE(m.last_message_at, s.ended_at, s.started_at) >= ?
+            """
+            params.append(since)
+        sql += " ORDER BY COALESCE(m.last_message_at, s.ended_at, s.started_at) DESC"
+        sessions = hermes_conn.execute(sql, params).fetchall()
     except sqlite3.Error as exc:
         logger.error("Cannot query Hermes sessions: %s", exc)
         hermes_conn.close()

@@ -7,9 +7,9 @@
 ### 问题1: 看板断连 — DB 路径不一致
 - **现象**: 看板永远显示 0 数据
 - **原因**: 看板默认读 `./tokenkeeper.db`，用户 `guard.install(db_path=...)` 可能写在不同路径
-- **尝试1** (失败): 环境变量 `TOKENKEEPER_DB` 传给 streamlit → 跨进程不生效
+- **尝试1** (失败): 只依赖环境变量 `TOKENKEEPER_DB`，无法清楚区分多个并发 dashboard 实例
 - **尝试2** (失败): `guard.is_installed()` 检测 → dashboard 进程里 guard 未安装
-- **最终方案**: CLI 写临时文件 `%TEMP%/tokenkeeper_dashboard.json`，看板读取。`--db` 命令行参数通过此机制传递
+- **最终方案**: CLI 通过 Streamlit 脚本参数 `-- --db <path>` 传递 DB，并同步设置 `TOKENKEEPER_DB`。已废弃全局临时文件 `%TEMP%/tokenkeeper_dashboard.json`，避免多个 dashboard 实例互相污染。
 
 ### 问题2: Streamlit 缓存旧 Ledger
 - **现象**: `--db` 参数改了但数据不变
@@ -47,9 +47,9 @@
 ### 问题8: Streamlit 加载旧 .pyc 模块
 - **现象**: 源码已修复但看板仍崩溃
 - **原因**: Python 的 `.pyc` 缓存先于代码修改加载
-- **尝试1** (部分有效): CLI 启动时清 `__pycache__`
-- **尝试2** (更可靠): 手动 `rm -rf __pycache__` 后重启
-- **教训**: 修改 Python 模块后必须清除 `.pyc`
+- **尝试1** (已废弃): CLI 启动时清 `__pycache__`
+- **最终方案**: 不在运行时删除缓存目录；通过重启明确的 dashboard 进程和显式 DB 参数保证加载路径可验证。
+- **教训**: 运行态必须显示实际 DB/进程入口，不能靠清缓存掩盖不确定性。
 
 ### 问题9: 终端输出污染源文件
 - **现象**: bash 错误信息 `/usr/bin/bash: ... No such file or directory` 被写入 `.py` 文件末尾

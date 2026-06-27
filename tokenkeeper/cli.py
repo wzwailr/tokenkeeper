@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 
 from . import __version__, _info
 
@@ -40,6 +41,11 @@ def main() -> None:
         "--db",
         default="./tokenkeeper.db",
         help="SQLite DB 路径（默认 ./tokenkeeper.db）",
+    )
+    dash_parser.add_argument(
+        "--hermes-sync-since",
+        default=None,
+        help="Only auto-sync Hermes activity after this Unix timestamp, or 'now'.",
     )
 
     # proxy
@@ -118,7 +124,11 @@ def main() -> None:
         info["db_default"] = "./tokenkeeper.db"
         print(json.dumps(info, ensure_ascii=False, indent=2))
     elif args.command == "dashboard":
-        run_dashboard(port=args.port, db=args.db)
+        run_dashboard(
+            port=args.port,
+            db=args.db,
+            hermes_sync_since=args.hermes_sync_since,
+        )
     elif args.command == "proxy":
         from tokenkeeper.proxy.openai_compat import run_proxy
 
@@ -140,7 +150,11 @@ def main() -> None:
         sys.exit(1)
 
 
-def run_dashboard(port: int, db: str) -> None:
+def run_dashboard(
+    port: int,
+    db: str,
+    hermes_sync_since: str | None = None,
+) -> None:
     """启动 Streamlit 看板。"""
     try:
         import streamlit.web.cli as stcli
@@ -149,15 +163,12 @@ def run_dashboard(port: int, db: str) -> None:
         sys.exit(1)
 
     import os
-    import json
-    import tempfile
 
-    # 写临时配置文件，看板进程通过它知道 DB 路径
     db_path = _resolve_dashboard_db_path(db)
-    cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
-    with open(cfg_path, "w") as f:
-        json.dump({"db_path": db_path}, f)
     os.environ["TOKENKEEPER_DB"] = db_path
+    resolved_hermes_sync_since = _resolve_hermes_sync_since(hermes_sync_since)
+    if resolved_hermes_sync_since is not None:
+        os.environ["TOKENKEEPER_HERMES_SYNC_SINCE"] = resolved_hermes_sync_since
 
     dashboard_path = os.path.join(
         os.path.dirname(__file__),
@@ -196,6 +207,15 @@ def _resolve_dashboard_db_path(db: str) -> str:
     if db.startswith(("postgresql://", "postgres://")):
         return db
     return os.path.abspath(os.path.expanduser(db))
+
+
+def _resolve_hermes_sync_since(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if value == "now":
+        return str(time.time())
+    float(value)
+    return value
 
 
 if __name__ == "__main__":

@@ -200,6 +200,42 @@ def test_sync_hermes_uses_latest_message_timestamp(tmp_path: Path) -> None:
     assert rows[0].timestamp == 1782540456.0
 
 
+def test_sync_hermes_skips_sessions_before_since(tmp_path: Path) -> None:
+    guard.uninstall()
+    hermes_db = tmp_path / "state.db"
+    tokenkeeper_db = tmp_path / "tokenkeeper.db"
+    _create_hermes_db(hermes_db)
+    _upsert_hermes_session(
+        hermes_db,
+        session_id="old",
+        input_tokens=100,
+        output_tokens=20,
+    )
+    _insert_hermes_message(hermes_db, session_id="old", timestamp=1782540000.0)
+    _upsert_hermes_session(
+        hermes_db,
+        session_id="new",
+        input_tokens=300,
+        output_tokens=40,
+    )
+    _insert_hermes_message(hermes_db, session_id="new", timestamp=1782540500.0)
+
+    assert (
+        sync_hermes_to_tokenkeeper(
+            hermes_db_path=str(hermes_db),
+            tk_db_path=str(tokenkeeper_db),
+            since=1782540300.0,
+        )
+        == 1
+    )
+
+    with Ledger(tokenkeeper_db) as ledger:
+        rows = ledger.query(limit=10)
+    assert len(rows) == 1
+    assert rows[0].prompt_tokens == 300
+    assert rows[0].timestamp == 1782540500.0
+
+
 def test_sync_hermes_estimates_cost_when_hermes_cost_missing(tmp_path: Path) -> None:
     guard.uninstall()
     hermes_db = tmp_path / "state.db"

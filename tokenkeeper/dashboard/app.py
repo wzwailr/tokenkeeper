@@ -120,12 +120,8 @@ def get_ledger(db_path: str) -> Any:
     return Ledger(db_path)
 
 
-# 实际调用时从配置文件读取路径（CLI 写入的）
 def _get_db_path() -> str:
-    """获取 DB 路径：优先读 CLI 写的临时配置，其次环境变量，最后默认。"""
-    import json
-    import tempfile
-
+    """Get the active DB path from script args, environment, or default."""
     argv_db = _get_db_path_from_argv()
     if argv_db:
         return argv_db
@@ -134,14 +130,7 @@ def _get_db_path() -> str:
     if env_db:
         return _normalize_db_path(env_db)
 
-    cfg_path = os.path.join(tempfile.gettempdir(), "tokenkeeper_dashboard.json")
-    try:
-        with open(cfg_path) as f:
-            cfg: dict[str, str] = json.load(f)
-            raw = cfg.get("db_path", "./tokenkeeper.db")
-            return _normalize_db_path(raw)
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        return _normalize_db_path("./tokenkeeper.db")
+    return _normalize_db_path("./tokenkeeper.db")
 
 
 def _get_db_path_from_argv(argv: list[str] | None = None) -> str | None:
@@ -169,9 +158,22 @@ def _sync_hermes_for_dashboard(db_path: str | None = None) -> int:
     try:
         from tokenkeeper.integrations.hermes_connector import sync_hermes_to_tokenkeeper
 
-        return sync_hermes_to_tokenkeeper(tk_db_path=target_db)
+        return sync_hermes_to_tokenkeeper(
+            tk_db_path=target_db,
+            since=_get_hermes_sync_since(),
+        )
     except Exception:
         return 0
+
+
+def _get_hermes_sync_since() -> float | None:
+    raw = os.environ.get("TOKENKEEPER_HERMES_SYNC_SINCE")
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
 
 
 def _sync_and_clear_dashboard_cache() -> int:
