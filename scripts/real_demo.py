@@ -14,13 +14,13 @@ from __future__ import annotations
 import os
 import sys
 import time
+from pathlib import Path
 
-sys.path.insert(0, r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 # 设置 DB
-demo_db = (
-    r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\real_demo.db"
-)
+demo_db = str(ROOT / "examples" / "real_demo.db")
 os.environ["TOKENKEEPER_DB"] = demo_db
 
 import requests

@@ -8,20 +8,20 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 # 设置 DB 路径环境变量（看板读这个）
-os.environ["TOKENKEEPER_DB"] = (
-    r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\demo.db"
-)
+os.environ["TOKENKEEPER_DB"] = str(ROOT / "examples" / "demo.db")
 
 from streamlit.testing.v1 import AppTest
 
 
 def main():
     """跑 streamlit app 并打印渲染结果。"""
-    app_path = r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\tokenkeeper\dashboard\app.py"
+    app_path = str(ROOT / "tokenkeeper" / "dashboard" / "app.py")
 
     print("=" * 70)
     print("🪶 tokenkeeper 看板实际渲染效果")

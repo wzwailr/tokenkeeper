@@ -5,13 +5,13 @@ from __future__ import annotations
 import os
 import sys
 import time
+from pathlib import Path
 
-sys.path.insert(0, r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 # 设置 DB 路径
-os.environ["TOKENKEEPER_DB"] = (
-    r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\demo.db"
-)
+os.environ["TOKENKEEPER_DB"] = str(ROOT / "examples" / "demo.db")
 
 from playwright.sync_api import sync_playwright
 
@@ -23,12 +23,12 @@ def main():
     print("=" * 70)
 
     streamlit_url = "http://localhost:8501"
-    out_dir = r"D:\aiCode\Hermes\aiTest\ai-agent-governance\docs\screenshots"
+    out_dir = str(ROOT / "docs" / "screenshots")
     os.makedirs(out_dir, exist_ok=True)
 
     with sync_playwright() as p:
         # 用您本机已有的 chromium-1228
-        chromium_exe = r"C:\Users\GALAXY\AppData\Local\ms-playwright\chromium-1228\chrome-win64\chrome.exe"
+        chromium_exe = os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE", "")
         if os.path.exists(chromium_exe):
             browser = p.chromium.launch(headless=True, executable_path=chromium_exe)
         else:

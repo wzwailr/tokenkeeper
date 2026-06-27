@@ -4,8 +4,10 @@ import sys
 import os
 import time
 import getpass
+from pathlib import Path
 
-sys.path.insert(0, r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 # 用 getpass 让您输入（不会显示在屏幕上，也不会被 Hermes redact）
 print("=" * 60)
@@ -28,9 +30,7 @@ if len(api_key) < 50:
     sys.exit(1)
 
 base = "https://api.minimaxi.com/v1"
-demo_db = (
-    r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\minimax_real.db"
-)
+demo_db = str(ROOT / "examples" / "minimax_real.db")
 if os.path.exists(demo_db):
     os.remove(demo_db)
 

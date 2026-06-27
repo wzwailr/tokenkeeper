@@ -10,9 +10,11 @@ from __future__ import annotations
 import os
 import sys
 import time
+from pathlib import Path
 
 # 必须放在 import tokenkeeper 之前
-sys.path.insert(0, r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 # key 从环境变量读
 API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
@@ -21,9 +23,7 @@ if not API_KEY:
     sys.exit(1)
 
 BASE_URL = "https://ws-f55xg8habaxdv2sm.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
-DEMO_DB = (
-    r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\aliyun_real.db"
-)
+DEMO_DB = str(ROOT / "examples" / "aliyun_real.db")
 
 # 设置 tokenkeeper DB
 os.environ["TOKENKEEPER_DB"] = DEMO_DB

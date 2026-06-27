@@ -1,9 +1,12 @@
 """测试 tokenkeeper 自动拦截 OpenAI SDK（用 minimax 作为兼容后端）。"""
 
 import os
+from pathlib import Path
 import openai
 from tokenkeeper import guard
 import time
+
+ROOT = Path(__file__).resolve().parents[1]
 
 print("=" * 60)
 print("🪶 测试 OpenAI 自动拦截")
@@ -20,7 +23,7 @@ client = openai.OpenAI(
 
 # 安装 tokenkeeper（应该自动 patch openai SDK）
 guard.install(
-    db_path=r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\auto_test.db",
+    db_path=str(ROOT / "examples" / "auto_test.db"),
     project="auto-test",
     user="tester",
 )

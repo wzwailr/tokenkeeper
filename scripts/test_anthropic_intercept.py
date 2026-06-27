@@ -2,8 +2,11 @@
 
 import os
 import time
+from pathlib import Path
 import anthropic
 from tokenkeeper import guard
+
+ROOT = Path(__file__).resolve().parents[1]
 
 print("=" * 60)
 print("🪶 测试 Anthropic SDK 自动拦截")
@@ -20,7 +23,7 @@ client = anthropic.Anthropic(
 
 # 安装 tokenkeeper
 guard.install(
-    db_path=r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\anthropic_test.db",
+    db_path=str(ROOT / "examples" / "anthropic_test.db"),
     project="anthropic-test",
     user="tester",
 )

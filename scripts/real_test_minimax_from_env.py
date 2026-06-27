@@ -4,6 +4,7 @@ import sys
 import os
 import time
 import requests
+from pathlib import Path
 
 # key 从环境变量读（完整 key 由用户在外面设置）
 api_key = os.environ.get("MINIMAX_API_KEY", "")
@@ -12,12 +13,11 @@ if not api_key:
     print("❌ 请先设置 MINIMAX_API_KEY 环境变量")
     sys.exit(1)
 
-sys.path.insert(0, r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 base = "https://api.minimaxi.com/v1"
-demo_db = (
-    r"D:\aiCode\Hermes\aiTest\ai-agent-governance\tokenkeeper\examples\minimax_real.db"
-)
+demo_db = str(ROOT / "examples" / "minimax_real.db")
 # 注意：不再重置 DB，保留历史数据
 # if os.path.exists(demo_db):
 #     os.remove(demo_db)
