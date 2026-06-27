@@ -40,14 +40,6 @@ from tokenkeeper import guard  # noqa: E402,F401
 from tokenkeeper.ledger import Ledger  # noqa: E402
 from tokenkeeper.pricing import PRICING_LAST_UPDATED, list_models  # noqa: E402
 
-# 同步 Hermes 最新数据
-try:
-    from tokenkeeper.integrations.hermes_connector import sync_hermes_to_tokenkeeper
-
-    sync_hermes_to_tokenkeeper()
-except Exception:
-    pass
-
 
 # ====================================================================
 # 页面配置
@@ -143,6 +135,20 @@ def _get_db_path() -> str:
             return os.path.expanduser(raw)
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
+
+
+def _sync_hermes_for_dashboard(db_path: str | None = None) -> int:
+    """Sync Hermes sessions into the dashboard's active SQLite ledger."""
+    target_db = db_path or _get_db_path()
+    if target_db.startswith("postgresql://") or target_db.startswith("postgres://"):
+        return 0
+
+    try:
+        from tokenkeeper.integrations.hermes_connector import sync_hermes_to_tokenkeeper
+
+        return sync_hermes_to_tokenkeeper(tk_db_path=target_db)
+    except Exception:
+        return 0
 
 
 @st.cache_data(ttl=5)
@@ -471,6 +477,7 @@ def render_budget_status() -> None:
 
 def main() -> None:
     """Streamlit 看板主入口。"""
+    _sync_hermes_for_dashboard()
     render_header()
 
     filters = render_sidebar()
