@@ -134,3 +134,56 @@ def test_dashboard_sync_clears_cache_when_hermes_changes(monkeypatch) -> None:
     assert module._sync_and_clear_dashboard_cache() == 2
     assert fake_cache.cleared is True
     assert fake_session_state["last_hermes_sync_changed"] == 2
+
+
+def test_dashboard_auto_refresh_uses_streamlit_fragment(monkeypatch) -> None:
+    module = importlib.import_module("tokenkeeper.dashboard.app")
+    captured = {}
+
+    def fake_fragment(*, run_every: str | None = None):
+        captured["run_every"] = run_every
+
+        def decorate(fn):
+            captured["function"] = fn.__name__
+
+            def wrapper(filters):
+                captured["filters"] = filters
+
+            return wrapper
+
+        return decorate
+
+    monkeypatch.setattr(module.st, "fragment", fake_fragment)
+
+    module.render_live_dashboard({"auto_refresh": True})
+
+    assert captured == {
+        "run_every": "15s",
+        "function": "render_dashboard_body",
+        "filters": {"auto_refresh": True},
+    }
+
+
+def test_dashboard_manual_refresh_disables_fragment_interval(monkeypatch) -> None:
+    module = importlib.import_module("tokenkeeper.dashboard.app")
+    captured = {}
+
+    def fake_fragment(*, run_every: str | None = None):
+        captured["run_every"] = run_every
+
+        def decorate(fn):
+            def wrapper(filters):
+                captured["filters"] = filters
+
+            return wrapper
+
+        return decorate
+
+    monkeypatch.setattr(module.st, "fragment", fake_fragment)
+
+    module.render_live_dashboard({"auto_refresh": False})
+
+    assert captured == {
+        "run_every": None,
+        "filters": {"auto_refresh": False},
+    }

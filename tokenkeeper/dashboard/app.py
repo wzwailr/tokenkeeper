@@ -28,7 +28,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st  # noqa: E402
-import streamlit.components.v1 as components  # noqa: E402
 
 try:
     import pandas as pd
@@ -185,19 +184,10 @@ def _sync_and_clear_dashboard_cache() -> int:
     return synced
 
 
-def _render_auto_refresh(enabled: bool, interval_seconds: int = 15) -> None:
+def _auto_refresh_interval(enabled: bool, interval_seconds: int = 15) -> str | None:
     if not enabled:
-        return
-    components.html(
-        f"""
-        <script>
-        window.setTimeout(function() {{
-            window.parent.location.reload();
-        }}, {interval_seconds * 1000});
-        </script>
-        """,
-        height=0,
-    )
+        return None
+    return f"{interval_seconds}s"
 
 
 @st.cache_data(ttl=5)
@@ -537,12 +527,9 @@ def render_budget_status() -> None:
 # ====================================================================
 
 
-def main() -> None:
-    """Streamlit 看板主入口。"""
+def render_dashboard_body(filters: dict) -> None:
+    """Render auto-refreshable dashboard content."""
     _sync_and_clear_dashboard_cache()
-    render_header()
-
-    filters = render_sidebar()
 
     st.markdown("---")
 
@@ -569,7 +556,22 @@ def main() -> None:
     # 最近调用
     render_recent_calls(filters)
 
-    _render_auto_refresh(filters["auto_refresh"])
+
+def render_live_dashboard(filters: dict) -> None:
+    """Render dashboard body inside a Streamlit fragment for local refresh."""
+    fragment = st.fragment(run_every=_auto_refresh_interval(filters["auto_refresh"]))(
+        render_dashboard_body
+    )
+    fragment(filters)
+
+
+def main() -> None:
+    """Streamlit 看板主入口。"""
+    render_header()
+
+    filters = render_sidebar()
+
+    render_live_dashboard(filters)
 
 
 if __name__ == "__main__":
