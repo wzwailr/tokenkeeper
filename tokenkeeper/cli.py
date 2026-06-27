@@ -85,6 +85,19 @@ def run_dashboard(port: int, db: str) -> None:
         print(f"❌ 看板文件不存在: {dashboard_path}")
         sys.exit(1)
 
+    # 强制清除 Python 模块缓存，确保加载最新代码
+    import glob as _glob, shutil as _shutil
+    _pkg = os.path.dirname(os.path.dirname(__file__))
+    for _d in _glob.glob(os.path.join(_pkg, "**", "__pycache__"), recursive=True):
+        _shutil.rmtree(_d, ignore_errors=True)
+    
+    # 自动安装 Hermes HTTP 拦截器
+    try:
+        from tokenkeeper.integrations.hermes_http import install as _install_http
+        _install_http(db)
+    except Exception:
+        pass
+
     sys.argv = ["streamlit", "run", dashboard_path, "--server.port", str(port)]
     stcli.main()
 

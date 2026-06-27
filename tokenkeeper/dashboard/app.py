@@ -159,7 +159,10 @@ def load_calls(
     """加载调用记录。"""
     ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
-    calls = ledger.query(since=since, project=project, model=model, limit=limit)
+    try:
+        calls = ledger.query(since=since, project=project, model=model, limit=limit)
+    except Exception:
+        return []
     return [
         {
             "时间": datetime.fromtimestamp(c.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
