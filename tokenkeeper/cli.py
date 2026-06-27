@@ -42,6 +42,71 @@ def main() -> None:
         help="SQLite DB 路径（默认 ./tokenkeeper.db）",
     )
 
+    # proxy
+    proxy_parser = subparsers.add_parser(
+        "proxy",
+        help="Run local HTTP proxy for external agents",
+    )
+    proxy_parser.add_argument(
+        "--upstream",
+        required=True,
+        help="Upstream API base URL, for example https://api.openai.com/v1",
+    )
+    proxy_parser.add_argument(
+        "--listen",
+        default="127.0.0.1:8787",
+        help="Listen address, default 127.0.0.1:8787",
+    )
+    proxy_parser.add_argument(
+        "--db",
+        default="./tokenkeeper.db",
+        help="SQLite ledger path, default ./tokenkeeper.db",
+    )
+    proxy_parser.add_argument(
+        "--project",
+        default="default",
+        help="Project name recorded in ledger",
+    )
+    proxy_parser.add_argument(
+        "--user",
+        default="default",
+        help="User name recorded in ledger",
+    )
+    proxy_parser.add_argument(
+        "--upstream-auth-env",
+        default=None,
+        help="Environment variable used to override upstream auth value",
+    )
+    proxy_parser.add_argument(
+        "--upstream-auth-header",
+        default="Authorization",
+        help="Header name for upstream auth override, default Authorization",
+    )
+    proxy_parser.add_argument(
+        "--daily-limit-usd",
+        type=float,
+        default=None,
+        help="Optional daily budget limit in USD",
+    )
+    proxy_parser.add_argument(
+        "--monthly-limit-usd",
+        type=float,
+        default=None,
+        help="Optional monthly budget limit in USD",
+    )
+    proxy_parser.add_argument(
+        "--per-call-limit-usd",
+        type=float,
+        default=None,
+        help="Optional per-call budget limit in USD",
+    )
+    proxy_parser.add_argument(
+        "--budget-action",
+        choices=("warn", "block"),
+        default="block",
+        help="Budget behavior, default block",
+    )
+
     args = parser.parse_args()
 
     if args.command == "version":
@@ -54,6 +119,22 @@ def main() -> None:
         print(json.dumps(info, ensure_ascii=False, indent=2))
     elif args.command == "dashboard":
         run_dashboard(port=args.port, db=args.db)
+    elif args.command == "proxy":
+        from tokenkeeper.proxy.openai_compat import run_proxy
+
+        run_proxy(
+            listen=args.listen,
+            upstream=args.upstream,
+            db_path=args.db,
+            project=args.project,
+            user=args.user,
+            upstream_auth_env=args.upstream_auth_env,
+            upstream_auth_header=args.upstream_auth_header,
+            daily_limit_usd=args.daily_limit_usd,
+            monthly_limit_usd=args.monthly_limit_usd,
+            per_call_limit_usd=args.per_call_limit_usd,
+            budget_action=args.budget_action,
+        )
     else:
         parser.print_help()
         sys.exit(1)
@@ -86,14 +167,17 @@ def run_dashboard(port: int, db: str) -> None:
         sys.exit(1)
 
     # 强制清除 Python 模块缓存，确保加载最新代码
-    import glob as _glob, shutil as _shutil
+    import glob as _glob
+    import shutil as _shutil
+
     _pkg = os.path.dirname(os.path.dirname(__file__))
     for _d in _glob.glob(os.path.join(_pkg, "**", "__pycache__"), recursive=True):
         _shutil.rmtree(_d, ignore_errors=True)
-    
+
     # 自动安装 Hermes HTTP 拦截器
     try:
         from tokenkeeper.integrations.hermes_http import install as _install_http
+
         _install_http(db)
     except Exception:
         pass

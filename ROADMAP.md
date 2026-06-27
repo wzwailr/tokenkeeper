@@ -1,5 +1,18 @@
 # tokenkeeper-ai Roadmap
 
+## v0.4.0 - Phase 3 Complete: external agent proxy and manual HTTP accounting
+
+- [x] `tokenkeeper proxy` for OpenAI-compatible `/v1/chat/completions` and `/chat/completions`
+- [x] SSE stream proxy accounting when final OpenAI-style `usage` is present
+- [x] Anthropic `/v1/messages` proxy accounting for input/output/cache-read tokens
+- [x] `POST /tokenkeeper/record` manual HTTP accounting for any runtime that can report usage
+- [x] `GET /tokenkeeper/health` smoke endpoint
+- [x] Proxy budget flags: `--daily-limit-usd`, `--monthly-limit-usd`, `--per-call-limit-usd`, `--budget-action warn|block`
+- [x] HTTP 429 `status="blocked"` ledger records before upstream calls when proxy block budgets are exceeded
+- [x] Explicit final boundary documented: external agents must route through proxy, attach a callback/adapter, or actively report usage; agents that cannot route or report cannot be silently counted
+
+Evidence: `tests/test_proxy.py` and `docs/CAPTURE_MATRIX.md`.
+
 ## v0.2.x (当前) — 2026-06
 
 - [ ] Azure 支持端到端验证

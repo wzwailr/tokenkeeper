@@ -1,6 +1,6 @@
 # tokenkeeper Capture Matrix
 
-This matrix is the source of truth for what tokenkeeper can honestly claim today and what still needs a tested integration.
+This matrix is the source of truth for what tokenkeeper can honestly claim today and what still needs a tested integration. Proxy usage details live in `docs/PROXY.md`.
 
 ## Verified In Phase 1
 
@@ -23,6 +23,16 @@ This matrix is the source of truth for what tokenkeeper can honestly claim today
 | Anthropic Python SDK sync/async/stream | Same Python process, class-level patch works | `tests/test_anthropic_capture.py` |
 | LangChain callback | Callback explicitly attached to the model/agent | `tests/test_langchain.py` |
 
+## Verified In Phase 3
+
+| Entry point | Runtime requirement | Evidence |
+| --- | --- | --- |
+| OpenAI-compatible HTTP proxy, non-stream | Agent can set `base_url` to `tokenkeeper proxy` and upstream returns OpenAI-style JSON | `tests/test_proxy.py` |
+| OpenAI-compatible HTTP proxy, SSE stream | Agent can set `base_url` to `tokenkeeper proxy` and upstream stream includes final `usage` | `tests/test_proxy.py` |
+| Anthropic HTTP proxy `/v1/messages` | Agent can route Anthropic messages requests through `tokenkeeper proxy` | `tests/test_proxy.py` |
+| Manual HTTP record endpoint | Agent can `POST /tokenkeeper/record` with explicit token/cost metadata | `tests/test_proxy.py` |
+| Proxy budget block | Proxy is configured with budget limits and `--budget-action block` | `tests/test_proxy.py` |
+
 ## Target Automatic Capture
 
 | Entry point | Runtime requirement | Status |
@@ -33,15 +43,18 @@ This matrix is the source of truth for what tokenkeeper can honestly claim today
 | OpenAI-compatible providers | Called through OpenAI Python SDK and returns OpenAI-style `usage` | Verified |
 | Anthropic Python SDK sync/async/stream | Same Python process, class-level patch works | Verified |
 | LangChain callback | Callback explicitly attached to the model/agent | Verified |
+| External agents through local proxy | Agent can configure `base_url` to `tokenkeeper proxy` | Verified |
+| Any runtime through manual HTTP record | Agent can explicitly `POST /tokenkeeper/record` | Verified |
 
 ## Fallback Capture Paths
 
-| Scenario | Required integration |
-| --- | --- |
-| Non-Python agent, Node/Rust/Go app, desktop app, or separate process | Route requests through a tokenkeeper proxy or call `guard.record()` explicitly |
-| Provider does not return token usage | Call can be captured, but token/cost fields are recorded as 0 until provider-specific extraction or manual records are added |
-| Hermes-style local app with a readable state database | Use a tested state DB sync connector |
+| Scenario | Required integration | Status |
+| --- | --- | --- |
+| Non-Python agent, Node/Rust/Go app, desktop app, or separate process | Route OpenAI-compatible or Anthropic HTTP traffic through `tokenkeeper proxy` | Verified for tested HTTP paths |
+| Any runtime that cannot route traffic but can report metadata | `POST /tokenkeeper/record` explicitly | Verified |
+| Provider does not return token usage | Call can be captured, but token/cost fields are recorded as 0 until provider-specific extraction or manual records are added | Verified limitation |
+| Hermes-style local app with a readable state database | Use a tested state DB sync connector | Outside Phase 3 |
 
 ## Explicit Boundary
 
-tokenkeeper cannot silently observe arbitrary traffic from another process, another language runtime, a SaaS-hosted agent, encrypted traffic, or a private binary that does not route through tokenkeeper. Those cases need a proxy, callback, manual record call, provider export, or local state sync.
+tokenkeeper cannot silently observe arbitrary traffic from another process, another language runtime, a SaaS-hosted agent, encrypted traffic, or a private binary that does not route through tokenkeeper. External agents are trackable only when they route supported HTTP traffic through `tokenkeeper proxy`, use a callback/adapter, or explicitly report records through `POST /tokenkeeper/record` / `guard.record()`.

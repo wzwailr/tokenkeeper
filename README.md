@@ -1,5 +1,45 @@
 # tokenkeeper
 
+## Verified Capture Scope
+
+tokenkeeper now has three verified accounting paths:
+
+| Path | Verified scope |
+| --- | --- |
+| In-process SDK patching | OpenAI Python SDK, OpenAI-compatible providers called through the OpenAI SDK, Anthropic Python SDK, sync/async/stream |
+| Framework callback | LangChain callback when explicitly attached |
+| External agent HTTP path | `tokenkeeper proxy` for tested OpenAI-compatible chat completions and Anthropic messages, plus `POST /tokenkeeper/record` for manual records |
+
+Start the local proxy:
+
+```bash
+tokenkeeper proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default
+```
+
+Supported proxy endpoints:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/v1/chat/completions` | Forward OpenAI-compatible non-stream and SSE stream requests and record final `usage` when present |
+| `/chat/completions` | Same as OpenAI-compatible chat completions without the `/v1` prefix |
+| `/v1/messages` | Forward Anthropic messages requests and record input/output/cache-read token usage |
+| `GET /tokenkeeper/health` | Smoke check without writing the ledger |
+| `POST /tokenkeeper/record` | Explicit usage record for any language or agent |
+
+Manual HTTP record example:
+
+```bash
+curl -X POST http://127.0.0.1:8787/tokenkeeper/record \
+  -H "Content-Type: application/json" \
+  -d '{"model":"custom-model","provider":"manual","prompt_tokens":100,"completion_tokens":40,"latency_ms":1200,"status":"success"}'
+```
+
+Proxy budget flags: `--daily-limit-usd`, `--monthly-limit-usd`, `--per-call-limit-usd`, `--budget-action warn|block`. When `block` rejects a call, tokenkeeper returns HTTP 429 and writes a `status="blocked"` record without calling upstream.
+
+Auth handling: by default, the proxy forwards the client's auth headers. Use `--upstream-auth-env` and `--upstream-auth-header` when the proxy should inject upstream credentials from an environment variable. tokenkeeper does not print or persist API keys.
+
+Final boundary: arbitrary SaaS, private binary, desktop, Node/Rust/native, or external agents are trackable only when they can route supported HTTP traffic through `tokenkeeper proxy`, attach a callback/adapter, or explicitly report usage through `/tokenkeeper/record` / `guard.record()`. If they cannot route or report, tokenkeeper cannot silently count them. `docs/CAPTURE_MATRIX.md` is the source of truth for verified coverage.
+
 <div align="center">
 
 **AI API 成本监控与限流守护者**
