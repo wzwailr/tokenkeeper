@@ -48,18 +48,24 @@ def sync_hermes_to_tokenkeeper(
         sessions = hermes_conn.execute(
             """
             SELECT
-                id, title, billing_provider, model,
-                input_tokens, output_tokens,
-                cache_read_tokens, cache_write_tokens, reasoning_tokens,
-                estimated_cost_usd, actual_cost_usd,
-                started_at, ended_at
-            FROM sessions
+                s.id, s.title, s.billing_provider, s.model,
+                s.input_tokens, s.output_tokens,
+                s.cache_read_tokens, s.cache_write_tokens, s.reasoning_tokens,
+                s.estimated_cost_usd, s.actual_cost_usd,
+                s.started_at, s.ended_at,
+                m.last_message_at
+            FROM sessions s
+            LEFT JOIN (
+                SELECT session_id, MAX(timestamp) AS last_message_at
+                FROM messages
+                GROUP BY session_id
+            ) m ON m.session_id = s.id
             WHERE (
-                COALESCE(input_tokens, 0) > 0
-                OR COALESCE(output_tokens, 0) > 0
-                OR COALESCE(cache_read_tokens, 0) > 0
+                COALESCE(s.input_tokens, 0) > 0
+                OR COALESCE(s.output_tokens, 0) > 0
+                OR COALESCE(s.cache_read_tokens, 0) > 0
             )
-            ORDER BY started_at DESC
+            ORDER BY COALESCE(m.last_message_at, s.ended_at, s.started_at) DESC
             """
         ).fetchall()
     except sqlite3.Error as exc:
@@ -139,7 +145,11 @@ def _session_to_record(session: sqlite3.Row) -> CallRecord:
     )
 
     return CallRecord(
-        timestamp=_session_timestamp(session["started_at"], session["ended_at"]),
+        timestamp=_session_timestamp(
+            session["last_message_at"],
+            session["ended_at"],
+            session["started_at"],
+        ),
         project="hermes",
         user="me",
         provider=str(provider),
@@ -181,16 +191,28 @@ def _session_cost(
     return cost.cost_usd, cost.cost_cny
 
 
-def _session_timestamp(started_at: Any, ended_at: Any) -> float:
-    timestamp = started_at or ended_at or time.time()
+def _session_timestamp(*candidates: Any) -> float:
+    timestamps: list[float] = []
+    for timestamp in candidates:
+        if not timestamp:
+            continue
+        parsed = _parse_timestamp(timestamp)
+        if parsed is not None:
+            timestamps.append(parsed)
+    if timestamps:
+        return max(timestamps)
+    return time.time()
+
+
+def _parse_timestamp(timestamp: Any) -> float | None:
     if isinstance(timestamp, (int, float)):
         return float(timestamp)
     if isinstance(timestamp, str):
         try:
             return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).timestamp()
         except ValueError:
-            return time.time()
-    return time.time()
+            return None
+    return None
 
 
 def _update_existing_hermes_record(

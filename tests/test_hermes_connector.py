@@ -29,6 +29,17 @@ def _create_hermes_db(path: Path) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT,
+            timestamp REAL NOT NULL
+        )
+        """
+    )
     conn.commit()
     conn.close()
 
@@ -72,6 +83,24 @@ def _upsert_hermes_session(
             1782540000.0,
             None,
         ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _insert_hermes_message(
+    path: Path,
+    *,
+    session_id: str = "s1",
+    timestamp: float = 1782540300.0,
+) -> None:
+    conn = sqlite3.connect(path)
+    conn.execute(
+        """
+        INSERT INTO messages (session_id, role, content, timestamp)
+        VALUES (?, ?, ?, ?)
+        """,
+        (session_id, "assistant", "ok", timestamp),
     )
     conn.commit()
     conn.close()
@@ -147,6 +176,28 @@ def test_sync_hermes_updates_existing_session_tokens(tmp_path: Path) -> None:
     assert rows[0].cached_tokens == 12
     assert rows[0].total_tokens == 187
     assert rows[0].cost_usd == 0.03
+
+
+def test_sync_hermes_uses_latest_message_timestamp(tmp_path: Path) -> None:
+    guard.uninstall()
+    hermes_db = tmp_path / "state.db"
+    tokenkeeper_db = tmp_path / "tokenkeeper.db"
+    _create_hermes_db(hermes_db)
+    _upsert_hermes_session(hermes_db)
+    _insert_hermes_message(hermes_db, timestamp=1782540456.0)
+
+    assert (
+        sync_hermes_to_tokenkeeper(
+            hermes_db_path=str(hermes_db),
+            tk_db_path=str(tokenkeeper_db),
+        )
+        == 1
+    )
+
+    with Ledger(tokenkeeper_db) as ledger:
+        rows = ledger.query(limit=10)
+    assert len(rows) == 1
+    assert rows[0].timestamp == 1782540456.0
 
 
 def test_sync_hermes_estimates_cost_when_hermes_cost_missing(tmp_path: Path) -> None:
