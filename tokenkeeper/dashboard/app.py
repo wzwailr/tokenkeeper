@@ -113,6 +113,7 @@ def get_ledger(db_path: str) -> Any:
     """
     if db_path.startswith("postgresql://") or db_path.startswith("postgres://"):
         from tokenkeeper.postgres_ledger import PostgresLedger
+
         return PostgresLedger(db_path)
     return Ledger(db_path)
 
@@ -127,9 +128,10 @@ def _get_db_path() -> str:
     try:
         with open(cfg_path) as f:
             cfg: dict[str, str] = json.load(f)
-            return cfg.get(
+            raw = cfg.get(
                 "db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
             )
+            return os.path.expanduser(raw)
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
 
