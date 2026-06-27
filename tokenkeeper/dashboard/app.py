@@ -113,7 +113,6 @@ def get_ledger(db_path: str) -> Any:
     """
     if db_path.startswith("postgresql://") or db_path.startswith("postgres://"):
         from tokenkeeper.postgres_ledger import PostgresLedger
-
         return PostgresLedger(db_path)
     return Ledger(db_path)
 
@@ -128,9 +127,7 @@ def _get_db_path() -> str:
     try:
         with open(cfg_path) as f:
             cfg: dict[str, str] = json.load(f)
-            raw = cfg.get(
-                "db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
-            )
+            raw = cfg.get("db_path", os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db"))
             return os.path.expanduser(raw)
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return os.environ.get("TOKENKEEPER_DB", "./tokenkeeper.db")
@@ -186,7 +183,11 @@ def load_daily(days: int) -> pd.DataFrame:
     """加载每日成本时间序列。"""
     ledger = get_ledger(_get_db_path())
     since = time.time() - days * 86400
-    calls = ledger.query(since=since, limit=100_000)
+    try:
+        calls = ledger.query(since=since, limit=100_000)
+    except Exception as e:
+        st.warning(f"查询失败: {e}")
+        return pd.DataFrame(columns=["date", "cost_usd", "calls"])
 
     if not calls:
         return pd.DataFrame(columns=["date", "cost_usd", "calls"])
