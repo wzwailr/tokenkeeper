@@ -91,9 +91,11 @@ from .ledger import (  # noqa: E402,F401
 )
 
 
+# 顶级 guard 单例 — 先导入模块（用别名），再覆盖 guard 名称
+from . import guard as _guard_mod  # noqa: E402
+from .core import guard  # noqa: E402
+
 # guard 模块自身定义 Budget / Guard / GuardDecision / BudgetExceededError
-# 顶级 guard 单例在 core.py
-from . import guard as _guard_module  # noqa: E402,F401
 from .guard import (  # noqa: E402,F401
     Budget,
     Guard,
@@ -101,9 +103,6 @@ from .guard import (  # noqa: E402,F401
     BudgetExceededError,
     BUDGET_CACHE_TTL_SECONDS,
 )
-
-# 顶级 guard 单例（覆盖 guard 模块名）
-from .core import guard  # noqa: E402,F401
 
 
 # 拦截核心（依赖 guard）
@@ -126,7 +125,7 @@ __all__ = sorted(
         __all__
         + pricing.__all__
         + ledger.__all__
-        + _guard_module.__all__
+        + _guard_mod.__all__
         + core.__all__
     )
 )
