@@ -1,581 +1,328 @@
-# tokenkeeper
+# tokenkeeper-ai
 
-## Verified Capture Scope
+tokenkeeper-ai 是一个 AI 调用用量和成本记账工具。它可以统计受支持 SDK、回调、HTTP proxy、手动上报，以及 Hermes 本地状态库里的调用记录。
 
-tokenkeeper now has three verified accounting paths:
+当前版本：`0.4.0`
 
-| Path | Verified scope |
-| --- | --- |
-| In-process SDK patching | OpenAI Python SDK, OpenAI-compatible providers called through the OpenAI SDK, Anthropic Python SDK, sync/async/stream |
-| Framework callback | LangChain callback when explicitly attached |
-| External agent HTTP path | `tokenkeeper proxy` for tested OpenAI-compatible chat completions and Anthropic messages, plus `POST /tokenkeeper/record` for manual records |
+PyPI：<https://pypi.org/project/tokenkeeper-ai/>
 
-## Install and connect in 60 seconds
+## 先说清楚边界
 
-For Hermes Desktop local accounting, install the dashboard extra and run the
-Hermes connector. This reads Hermes' local `state.db` and starts the dashboard
-against the same tokenkeeper ledger:
+tokenkeeper 不是系统级流量监听器，也不是“安装后自动统计所有 agent”的工具。
+
+安装 `tokenkeeper-ai` 只代表机器上有这个包。要产生统计数据，必须接入下面某一种路径：
+
+| 接入路径 | 当前状态 | 用量从哪里来 |
+| --- | --- | --- |
+| OpenAI Python SDK | 已验证 | 同一 Python 进程内 `guard.install()` patch SDK 调用 |
+| OpenAI-compatible provider | 已验证 | 通过 OpenAI Python SDK 调用，并且 provider 返回 OpenAI 风格 `usage` |
+| Anthropic Python SDK | 已验证 | 同一 Python 进程内 patch Anthropic messages 调用 |
+| LangChain callback | 已验证 | 显式挂载 `TokenKeeperCallbackHandler` |
+| 外部 agent HTTP proxy | 已验证测试路径 | agent 必须能把 `base_url` 指向本地 tokenkeeper proxy |
+| 手动 HTTP record | 已验证 | 任意语言主动 `POST /tokenkeeper/record` 上报用量 |
+| Hermes 本地状态库同步 | 已验证测试库结构 | Hermes 必须已经把 session/token 写入本地 `state.db` |
+| Dashboard | 已验证 | 读取指定的 tokenkeeper ledger DB |
+
+详细验收矩阵见 [`docs/CAPTURE_MATRIX.md`](docs/CAPTURE_MATRIX.md)。
+
+## 不能做到什么
+
+tokenkeeper 不能静默统计所有模型、所有 agent、所有语言、所有桌面应用。
+
+这些场景不能自动统计：
+
+- SaaS agent 不暴露用量，也不能配置回调或上报；
+- 私有二进制、桌面应用、Node/Rust/Go 进程不能配置 proxy，也不能主动上报；
+- HTTPS 请求没有显式走 tokenkeeper proxy；
+- provider 不返回 usage，此时只能记录 0 token/0 cost 或依赖手动上报；
+- Hermes 没有把某次调用写入 `state.db`；
+- 用户只安装了包，但没有运行 `connect hermes`、没有配置 proxy、没有 `guard.install()`。
+
+因此，Codex、ChatGPT、Cursor、Hermes 或其他 agent 不会因为你安装了 tokenkeeper 就自动被统计。必须有明确接入点。
+
+## 安装
+
+核心包：
 
 ```bash
-pip install "tokenkeeper-ai[dashboard]"
-tokenkeeper doctor --target hermes --db ./tokenkeeper.db --port 8502
-tokenkeeper connect hermes --db ./tokenkeeper.db --port 8502 --since now
+pip install -U tokenkeeper-ai==0.4.0
 ```
 
-If Hermes stores `state.db` outside the standard Windows location, pass it
-explicitly:
+Dashboard 和 Hermes 本地同步需要 dashboard extra：
 
 ```bash
-tokenkeeper connect hermes --hermes-db "C:\path\to\state.db" --db ./tokenkeeper.db --port 8502 --since now
+pip install -U "tokenkeeper-ai[dashboard]==0.4.0"
 ```
 
-For external agents that can configure an OpenAI-compatible `base_url`, run the
-proxy connector. It prints the exact `base_url` to put into the agent:
+包含常用可选依赖：
 
 ```bash
-tokenkeeper doctor --target proxy --db ./tokenkeeper.db --port 8502
-tokenkeeper connect proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default --dashboard --port 8502
+pip install -U "tokenkeeper-ai[all]==0.4.0"
 ```
 
-Configure the agent with:
+确认版本：
+
+```bash
+tokenkeeper version
+```
+
+应该输出：
 
 ```text
-base_url = http://127.0.0.1:8787/v1
+tokenkeeper 0.4.0
 ```
 
-Hermes boundary: tokenkeeper can only sync calls that Hermes has already written
-to its local state database. If Hermes does not persist a call, omits usage
-fields, or uses a model not covered by the price table, tokenkeeper cannot
-fully calculate that call.
+## 按场景接入
 
-Proxy boundary: the agent must be able to route traffic through the local proxy
-or actively report usage. Closed SaaS/private agents that cannot route, attach a
-callback, or post records cannot be silently counted.
+### 1. Python 代码里使用 OpenAI/Anthropic SDK
 
-Start the lower-level local proxy directly:
-
-```bash
-tokenkeeper proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default
-```
-
-Supported proxy endpoints:
-
-| Endpoint | Purpose |
-| --- | --- |
-| `/v1/chat/completions` | Forward OpenAI-compatible non-stream and SSE stream requests and record final `usage` when present |
-| `/chat/completions` | Same as OpenAI-compatible chat completions without the `/v1` prefix |
-| `/v1/messages` | Forward Anthropic messages requests and record input/output/cache-read token usage |
-| `GET /tokenkeeper/health` | Smoke check without writing the ledger |
-| `POST /tokenkeeper/record` | Explicit usage record for any language or agent |
-
-Manual HTTP record example:
-
-```bash
-curl -X POST http://127.0.0.1:8787/tokenkeeper/record \
-  -H "Content-Type: application/json" \
-  -d '{"model":"custom-model","provider":"manual","prompt_tokens":100,"completion_tokens":40,"latency_ms":1200,"status":"success"}'
-```
-
-Proxy budget flags: `--daily-limit-usd`, `--monthly-limit-usd`, `--per-call-limit-usd`, `--budget-action warn|block`. When `block` rejects a call, tokenkeeper returns HTTP 429 and writes a `status="blocked"` record without calling upstream.
-
-Auth handling: by default, the proxy forwards the client's auth headers. Use `--upstream-auth-env` and `--upstream-auth-header` when the proxy should inject upstream credentials from an environment variable. tokenkeeper does not print or persist API keys.
-
-Final boundary: arbitrary SaaS, private binary, desktop, Node/Rust/native, or external agents are trackable only when they can route supported HTTP traffic through `tokenkeeper proxy`, attach a callback/adapter, or explicitly report usage through `/tokenkeeper/record` / `guard.record()`. If they cannot route or report, tokenkeeper cannot silently count them. `docs/CAPTURE_MATRIX.md` is the source of truth for verified coverage.
-
-<div align="center">
-
-**AI API 成本监控与限流守护者**
-
-让 AI 应用开发者在受支持 SDK、框架适配器或手动记录路径中获得 token 统计、成本追踪、预算限额与熔断保护
-
-[![PyPI version](https://img.shields.io/pypi/v/tokenkeeper-ai)](https://pypi.org/project/tokenkeeper-ai/)
-[![Python](https://img.shields.io/pypi/pyversions/tokenkeeper-ai)](https://pypi.org/project/tokenkeeper-ai/)
-[![CI](https://github.com/wzwailr/tokenkeeper/actions/workflows/tests.yml/badge.svg)](https://github.com/wzwailr/tokenkeeper/actions/workflows/tests.yml)
-[![Coverage](https://img.shields.io/badge/coverage-51%25-yellow)](https://github.com/wzwailr/tokenkeeper)
-[![License](https://img.shields.io/pypi/l/tokenkeeper-ai)](https://github.com/wzwailr/tokenkeeper/blob/master/LICENSE)
-
-</div>
-
----
-
-## 目次
-
-- [它解决什么问题](#-它解决什么问题)
-- [30 秒接入](#-30-秒接入)
-- [功能特性](#-功能特性)
-- [安装](#-安装)
-- [快速开始](#-快速开始)
-- [国产模型](#-国产模型openai-兼容协议)
-- [预算管理](#️-预算管理)
-- [流式调用](#-流式调用)
-- [看板](#-看板-streamlit)
-- [命令行](#-命令行)
-- [手动记账](#-手动记账sdk-不自动拦截)
-- [自定义模型价格](#️-自定义模型价格)
-- [数据导出](#-数据导出)
-- [API 参考](#-api-参考)
-- [常见问题](#-常见问题)
-- [故障排查](#️-故障排查)
-- [开发](#-开发)
-- [License](#-license)
-
----
-
-## 🎯 它解决什么问题
-
-| 痛点 | 解决方案 |
-|------|---------|
-| ❌ 不知道 AI 调用花了多少钱 | ✅ 自动按模型价格表计费，`$` / `¥` 双币种 |
-| ❌ Agent 失控循环一下烧了几百美元 | ✅ 超预算自动熔断（`BudgetExceededError`） |
-| ❌ 团队预算没法分摊、没法预警 | ✅ project / user 双维度拆分，看板实时监控 |
-
----
-
-## 🚀 30 秒接入
-
-```python
-# 1. 安装
-pip install tokenkeeper-ai
-
-# 2. 在你的 AI 应用入口加 3 行
-from tokenkeeper import guard
-
-guard.install(project="my-ai-app")
-guard.set_budget(daily_limit_usd=10.0, action="block")  # 超 $10/天自动停
-
-# 3. 受支持 OpenAI SDK 路径中，业务调用代码保持不变
-import openai
-client = openai.OpenAI()          # 你的原有代码
-resp = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Hello"}],
-)
-# ↑ 受支持 SDK 路径会自动记账 + 限额检查
-```
-
-受支持 SDK 路径的目标是低侵入接入；非 Python 进程、私有 SDK 或外部 agent 需要 callback、proxy 或 `guard.record()`。
-
----
-
-## ✨ 功能特性
-
-- **低侵入接入** — 支持通过 SDK patch、框架 callback 或 `guard.record()` 记录调用
-- **自动计费** — 内置 42 个模型价格表（OpenAI / Anthropic / DeepSeek / 阿里 / 智谱 / 百度 / 月之暗面 / 零一万物 / minimax），支持 $ / ¥ 双币种
-- **预算熔断** — 每日 / 每月 / 单项目 / 单用户限额，超限 block 或 warn
-- **流式支持** — OpenAI/Anthropic 同进程流式调用已通过测试验证；外部进程仍需 proxy 或手动记录
-- **本地优先** — SQLite 本地存储，数据不出机器
-- **看板** — Streamlit 实时仪表盘（KPI + 趋势图 + Top 烧钱模型）
-- **错误健壮** — 网络重试、降级模式、错误隔离，patch 失败不影响原 SDK
-
----
-
-## 📦 安装
-
-```bash
-# 基础安装（只看核心功能）
-pip install tokenkeeper-ai
-
-# 带看板
-pip install "tokenkeeper-ai[dashboard]"
-
-# 带 OpenAI 集成（通常你已装了 openai）
-pip install "tokenkeeper-ai[openai]"
-
-# 带 Anthropic 集成
-pip install "tokenkeeper-ai[anthropic]"
-
-# 一键装齐
-pip install "tokenkeeper-ai[all]"
-
-# 开发模式（从源码）
-git clone https://github.com/wzwailr/tokenkeeper.git
-cd tokenkeeper
-pip install -e ".[all]"
-```
-
----
-
-## 🚀 快速开始
-
-### 基础用法
-
-```python
-from tokenkeeper import guard
-
-guard.install(project="my-app", user="alice")
-guard.set_budget(daily_limit_usd=5.0, action="block")
-
-import openai
-client = openai.OpenAI()
-resp = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Hello"}],
-)
-print(resp.choices[0].message.content)
-# 同时写入 SQLite：model / tokens / cost / latency
-```
-
-### 捕获超限
-
-```python
-from tokenkeeper import guard, BudgetExceededError
-
-guard.install(project="my-app")
-guard.set_budget(daily_limit_usd=1.0, action="block")
-
-try:
-    resp = client.chat.completions.create(model="gpt-4o", messages=[...])
-except BudgetExceededError as e:
-    print(f"预算超限: {e}")
-    # 降级到更便宜的模型 / 暂停 / 通知用户
-```
-
----
-
-## 🇨🇳 国产模型（OpenAI 兼容协议）
-
-OpenAI 兼容服务的支持路径是通过 OpenAI Python SDK 调用，并依赖提供方返回 OpenAI 风格的 `usage` 字段。第二阶段已用 `deepseek-chat` 这类 OpenAI-compatible 模型路径验证自动拦截与记账。
-
-```python
-# DeepSeek
-client = openai.OpenAI(
-    api_key="sk-***",
-    base_url="https://api.deepseek.com/v1",
-)
-
-# 阿里通义千问
-client = openai.OpenAI(
-    api_key="sk-***",
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-)
-
-# 月之暗面 Kimi
-client = openai.OpenAI(
-    api_key="sk-***",
-    base_url="https://api.moonshot.cn/v1",
-)
-
-# minimax
-client = openai.OpenAI(
-    api_key="sk-cp-***",
-    base_url="https://api.minimaxi.com/v1",
-)
-```
-
-内置价格表已覆盖 42 个模型。未识别的模型 `cost_usd=0`，可通过 `register_custom_pricing()` 补录。
-
----
-
-## 🛡️ 预算管理
-
-### 三种粒度
-
-```python
-# 全局预算
-guard.set_budget(
-    daily_limit_usd=10.0,
-    monthly_limit_usd=200.0,
-    per_call_limit_usd=1.0,
-    action="block",
-)
-
-# 单项目预算
-guard.set_budget(
-    scope="project",
-    scope_key="my-app",
-    daily_limit_usd=5.0,
-    action="block",
-)
-
-# 单用户预算
-guard.set_budget(
-    scope="user",
-    scope_key="alice",
-    daily_limit_usd=2.0,
-    action="block",
-)
-```
-
-### 两种动作
-
-| action | 行为 |
-|--------|------|
-| `"warn"` | 超限只记日志，调用继续 |
-| `"block"` | 超限抛 `BudgetExceededError` |
-
----
-
-## 🌊 流式调用
-
-OpenAI 和 Anthropic 同进程流式调用已在第二阶段通过测试验证。实际完成状态以 `docs/CAPTURE_MATRIX.md` 为准。
-
-```python
-# OpenAI 流式
-stream = client.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=[{"role": "user", "content": "Hello"}],
-    stream=True,
-)
-for chunk in stream:
-    if chunk.choices[0].delta.content:
-        print(chunk.choices[0].delta.content, end="")
-# ↑ 流结束时记录 usage
-
-# Anthropic 流式
-import anthropic
-client = anthropic.Anthropic()
-with client.messages.stream(
-    model="claude-sonnet-4-20250514",
-    max_tokens=1024,
-    messages=[{"role": "user", "content": "Hello"}],
-) as stream:
-    for text in stream.text_stream:
-        print(text, end="")
-# ↑ 流结束时同样记录 usage
-```
-
-**工作原理**：tokenkeeper 劫持 OpenAI `chat.completions.create`、Anthropic `messages.create` / `messages.stream`，在调用完成后提取 `usage`，计算成本，写入 ledger。具体已验证范围见 `docs/CAPTURE_MATRIX.md`。
-
----
-
-## 🧭 捕获范围
-
-tokenkeeper 自动统计只覆盖受支持 SDK、同进程框架适配器，或显式接入路径。任意 agent、任意语言运行时、桌面应用、SaaS agent、私有二进制进程无法被 Python monkey-patch 静默捕获；这些场景需要 proxy、callback、`guard.record()` 或状态库同步。
-
----
-
-## 📊 看板（Streamlit）
-
-```bash
-tokenkeeper dashboard
-# 打开 http://localhost:8501
-```
-
-看板功能：
-- 💰 KPI 卡片：总成本 / 调用次数 / 平均成本 / 错误率
-- 📈 每日趋势图
-- 🏆 Top 烧钱模型
-- 📋 最近调用列表（可筛选、导出 CSV）
-
-自定义端口和 DB：
-
-```bash
-tokenkeeper dashboard --port 8888 --db /path/to/db.sqlite
-```
-
----
-
-## 🔌 命令行
-
-```bash
-tokenkeeper version          # 显示版本
-tokenkeeper info             # 运行时信息（已加载模型数、价格表日期）
-tokenkeeper doctor           # 检查安装、DB、Hermes、proxy、dashboard 是否可用
-tokenkeeper connect hermes   # 同步 Hermes 本地 state.db 并启动看板
-tokenkeeper connect proxy    # 启动记账 proxy，可配合 --dashboard 打开看板
-tokenkeeper dashboard        # 启动看板（默认 8501）
-tokenkeeper dashboard --port 8888 --db /path/to/db.sqlite
-```
-
----
-
-## 🧪 手动记账（SDK 不自动拦截）
-
-如果你用非 OpenAI/Anthropic SDK 或自建调用，可以手动调用 `guard.record()`：
-
-```python
-from tokenkeeper import guard
-
-guard.install(project="my-app")
-
-# 任何 LLM 调用后，手动记一笔
-guard.record(
-    model="custom-llm",
-    prompt_tokens=1000,
-    completion_tokens=500,
-    cost_usd=0.005,
-    cost_cny=0.036,
-    latency_ms=1200,
-)
-```
-
----
-
-## 🛠️ 自定义模型价格
-
-### 代码方式
-
-```python
-from tokenkeeper import register_custom_pricing, ModelPricing
-
-register_custom_pricing(
-    "my-local-llama-3-70b",
-    ModelPricing(
-        input_per_1m=0.0,      # 自托管免费
-        output_per_1m=0.0,
-        provider="self-hosted",
-        notes="本地 Llama 3 70B",
-    ),
-)
-```
-
-### 环境变量方式（无需改代码）
-
-```bash
-export TOKENKEEPER_PRICING_OVERRIDE='{"my-llm": {"input_per_1m": 1.0, "output_per_1m": 2.0}}'
-```
-
----
-
-## 📂 数据导出
-
-```python
-from tokenkeeper import guard
-import time
-
-guard.install()
-
-# 导出最近 7 天为 CSV
-guard.ledger().export_csv("./calls.csv", since=time.time() - 7*86400)
-
-# 导出为 JSONL
-guard.ledger().export_jsonl("./calls.jsonl", since=time.time() - 7*86400)
-```
-
----
-
-## 📖 API 参考
-
-### `tokenkeeper.guard`（全局单例）
+适用场景：你的 Python 进程直接调用 OpenAI、OpenAI-compatible provider 或 Anthropic SDK。
 
 ```python
 from tokenkeeper import guard
 
 guard.install(
-    db_path="./tokenkeeper.db",  # SQLite 文件路径
-    project="default",           # 项目标识
-    user="default",              # 用户标识
-    auto_patch_openai=True,      # 是否自动 patch 受支持 SDK（OpenAI/OpenAI-compatible/Anthropic）
-)
-
-guard.set_budget(
-    daily_limit_usd=10.0,        # 每日美元限额
-    monthly_limit_usd=200.0,     # 每月美元限额
-    per_call_limit_usd=1.0,      # 单次调用美元限额
-    action="block",              # "block" | "warn"
-    scope="global",              # "global" | "project" | "user"
-    scope_key=None,              # scope 非 global 时必填
-)
-
-guard.is_installed()             # -> bool
-guard.ledger()                   # -> Ledger 实例
-guard.guard_instance()           # -> Guard 实例
-guard.uninstall()                # 恢复原始 SDK
-```
-
-### `BudgetExceededError`
-
-```python
-from tokenkeeper import BudgetExceededError
-
-try:
-    resp = client.chat.completions.create(...)
-except BudgetExceededError as e:
-    print(e.scope)        # "global" | "project" | "user"
-    print(e.limit_type)   # "daily" | "monthly" | "per_call"
-    print(e.current_cost) # 当前已花费
-    print(e.limit)        # 限额
-```
-
-### `register_custom_pricing()`
-
-```python
-from tokenkeeper import register_custom_pricing, ModelPricing
-
-register_custom_pricing(
-    "model-id",
-    ModelPricing(
-        input_per_1m=1.0,       # 输入每百万 token 美元
-        output_per_1m=2.0,      # 输出每百万 token 美元
-        provider="custom",       # 供应商名
-        notes="可选备注",
-    ),
+    db_path="./tokenkeeper.db",
+    project="my-app",
+    user="alice",
 )
 ```
 
----
+之后，同一 Python 进程内受支持的 SDK 调用会被记录。
 
-## ❓ 常见问题
+限制：
 
-### Q1：会拖慢我的 LLM 调用吗？
-**A**：SDK 拦截不会修改请求正文；OpenAI 流式路径会补 `stream_options.include_usage=True` 以便获得最终 usage。第二阶段已完成同进程测试验证，真实 API 性能压测不属于本阶段。
+- 只影响当前 Python 进程；
+- 不会 patch 其他进程；
+- 不会 patch Rust/Node/Go 写的桌面应用；
+- provider 不返回 usage 时，token/cost 可能是 0。
 
-### Q2：我的 token 数据会泄露吗？
-**A**：默认调用记录存在本地 SQLite（默认 `./tokenkeeper.db`），核心记账不上传数据。启用 webhook、proxy 或外部同步时，会发生这些显式功能需要的网络请求。
+### 2. Hermes Desktop 本地状态库同步
 
-### Q3：支持哪些模型？
-**A**：42 个内置模型。覆盖 OpenAI、Anthropic、DeepSeek、阿里、智谱、百度、月之暗面、零一万物、minimax。OpenAI 兼容协议端点需要通过受支持 SDK 或后续 proxy 路径接入，并返回可解析 usage 才能自动统计。
+适用场景：你想把 Hermes 本地 `state.db` 里的会话用量同步进 tokenkeeper，并在 Dashboard 看。
 
-### Q4：怎么区分不同项目/用户的费用？
-**A**：`guard.install()` 时设 `project="..."` 和 `user="..."`，看板上按这两个维度筛选。
-
-### Q5：团队能用吗？
-**A**：可以。每个人的 guard 指向同一个 SQLite 文件（放共享盘 / S3 / NAS），数据自动合并。
-
-### Q6：patch 失败会怎样？
-**A**：tokenkeeper 采用 fail-open 策略。patch 失败时记录错误日志，但原始 SDK 调用不受影响——只是本次调用不计账。
-
----
-
-## 🛠️ 故障排查
-
-### "Unknown model" 警告
-模型不在内置价格表。`cost_usd=0`，但调用正常记账。  
-**解决**：用 `register_custom_pricing()` 或环境变量 `TOKENKEEPER_PRICING_OVERRIDE` 补录价格。
-
-### 安装后找不到 `tokenkeeper` 命令
-检查 `pip install` 是否成功。`python -m tokenkeeper --help` 应该能跑。
-
-### 看板打不开
-默认 8501 端口被占用：`tokenkeeper dashboard --port 8888`。
-
----
-
-## 👩‍💻 开发
+先诊断：
 
 ```bash
-git clone https://github.com/wzwailr/tokenkeeper.git
-cd tokenkeeper
-pip install -e ".[all]"
-
-# 运行测试
-pytest
-
-# 类型检查
-mypy tokenkeeper
-
-# 构建
-python -m build --wheel
+tokenkeeper doctor --target hermes --db ./tokenkeeper.db --port 8502
 ```
 
-### 架构
+启动 Hermes 同步和 Dashboard：
 
-```
-tokenkeeper/
-├── core.py          # GuardAPI 单例，install / uninstall / record / set_budget
-├── guard.py         # Guard 预算检查逻辑
-├── ledger.py        # Ledger SQLite 读写
-├── capture.py       # SDK/Callback 共享记账 helper
-├── pricing.py       # 模型价格查找
-├── pricing_data.py  # 42 个模型内置价格表
-├── cli.py           # 命令行入口
-└── integrations/
-    ├── openai_compat.py   # OpenAI SDK patch（兼容 OpenAI-like 端点）
-    └── anthropic.py       # Anthropic SDK patch
+```bash
+tokenkeeper connect hermes --db ./tokenkeeper.db --port 8502 --since now
 ```
 
----
+如果 Hermes 的 `state.db` 不在默认路径，显式指定：
 
-## 📜 License
+```bash
+tokenkeeper connect hermes --hermes-db "C:\path\to\state.db" --db ./tokenkeeper.db --port 8502 --since now
+```
 
-MIT © tokenkeeper contributors
+这里的真实含义：
+
+- `--since now` 只同步命令启动后 Hermes 写入的记录；
+- 如果要导入历史可读记录，不要传 `--since now`；
+- Dashboard 读取的是 `--db` 指定的 tokenkeeper DB；
+- Hermes 必须真的把用量写进 `state.db`，否则 tokenkeeper 没有数据可同步；
+- 这是本地数据库同步，不是实时网络拦截。
+
+### 3. 外部 agent 走本地 HTTP proxy
+
+适用场景：agent 可以配置 OpenAI-compatible `base_url`。
+
+先诊断：
+
+```bash
+tokenkeeper doctor --target proxy --db ./tokenkeeper.db --port 8502
+```
+
+启动 proxy 和 Dashboard：
+
+```bash
+tokenkeeper connect proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default --dashboard --port 8502
+```
+
+把 agent 的 OpenAI-compatible `base_url` 改成：
+
+```text
+http://127.0.0.1:8787/v1
+```
+
+底层 proxy 命令也可以单独运行：
+
+```bash
+tokenkeeper proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default
+```
+
+已验证的 proxy 路径：
+
+| Endpoint | 行为 |
+| --- | --- |
+| `POST /v1/chat/completions` | OpenAI-compatible 非流式和 SSE 流式 |
+| `POST /chat/completions` | 不带 `/v1` 前缀的 OpenAI-compatible chat completions |
+| `POST /v1/messages` | Anthropic messages 非流式 |
+| `GET /tokenkeeper/health` | 健康检查，不写账本 |
+| `POST /tokenkeeper/record` | 手动上报用量 |
+
+鉴权说明：
+
+- 默认转发客户端传进来的 auth header；
+- 可用 `--upstream-auth-env` 和 `--upstream-auth-header` 让 proxy 从环境变量注入上游 API key；
+- tokenkeeper 不打印、不持久化 API key。
+
+预算参数：
+
+```bash
+--daily-limit-usd 10 --monthly-limit-usd 200 --per-call-limit-usd 1 --budget-action warn
+```
+
+如果使用 `--budget-action block`，超限时 proxy 会返回 HTTP 429，并且不会调用上游。
+
+### 4. 手动 HTTP 记账
+
+适用场景：任意语言或 agent 能主动上报用量。
+
+```bash
+curl -X POST http://127.0.0.1:8787/tokenkeeper/record -H "Content-Type: application/json" -d "{\"model\":\"custom-model\",\"provider\":\"manual\",\"prompt_tokens\":100,\"completion_tokens\":40,\"latency_ms\":1200,\"status\":\"success\"}"
+```
+
+手动 record 是最明确的兜底方式，但前提是调用方知道或能估算 token 用量。
+
+## Dashboard
+
+直接启动：
+
+```bash
+tokenkeeper dashboard --port 8502 --db ./tokenkeeper.db
+```
+
+Dashboard 展示：
+
+- 总成本；
+- 调用次数；
+- Top 烧钱模型；
+- 最近调用；
+- 预算状态；
+- 当前 DB 路径；
+- Hermes 同步状态。
+
+如果 Dashboard 没有数据，按这个顺序查：
+
+1. 调用记录是否写入了 Dashboard 正在读的同一个 `--db`；
+2. Hermes 是否真的写入了 `state.db`；
+3. agent 是否真的把请求路由到了 tokenkeeper proxy；
+4. provider 是否返回了 usage；
+5. 模型是否在价格表里，或者是否需要手动上报 cost。
+
+## 命令行
+
+| 命令 | 用途 |
+| --- | --- |
+| `tokenkeeper version` | 查看版本 |
+| `tokenkeeper info` | 查看运行时信息 |
+| `tokenkeeper doctor` | 检查安装、DB、Hermes、proxy、dashboard 是否可用 |
+| `tokenkeeper connect hermes` | 同步 Hermes 本地 `state.db` 并启动 Dashboard |
+| `tokenkeeper connect proxy` | 启动记账 proxy，可选启动 Dashboard |
+| `tokenkeeper dashboard` | 启动 Dashboard |
+| `tokenkeeper proxy` | 启动底层 HTTP proxy |
+
+## 数据和隐私
+
+默认调用记录写入本地 SQLite，例如 `./tokenkeeper.db`。核心 ledger 不上传数据。
+
+只有启用这些显式功能时才会发生对应网络请求：
+
+- 使用 `tokenkeeper proxy` 转发模型请求；
+- 配置 webhook/alerting；
+- 你自己的服务主动调用 `/tokenkeeper/record`。
+
+## 常见问题
+
+### 安装后会自动接入 Hermes 吗？
+
+不会。安装只是在机器上安装 Python 包。Hermes 要运行：
+
+```bash
+tokenkeeper connect hermes --db ./tokenkeeper.db --port 8502 --since now
+```
+
+### 能自动统计我当前 Codex 或 ChatGPT 的对话吗？
+
+不能，除非这个应用满足其中之一：
+
+- 请求能走 tokenkeeper proxy；
+- 使用了受支持 SDK/callback；
+- 写入了 tokenkeeper 支持读取的本地状态库；
+- 主动上报 record。
+
+否则 tokenkeeper 不能静默看到它的用量。
+
+### Hermes 的用量可以统计吗？
+
+可以，但前提是 Hermes 把会话和 token 用量写入了本地 `state.db`，并且字段结构符合当前已测试形态。
+
+不能保证统计：
+
+- Hermes 未落盘的调用；
+- Hermes 没写 usage 字段的调用；
+- tokenkeeper 指向了错误的 `state.db`；
+- Dashboard 指向了错误的 tokenkeeper DB。
+
+### 为什么 Hermes 最新调用没出现在 Dashboard？
+
+常见原因：
+
+- Hermes 没把那次调用写进 `state.db`；
+- `--since now` 过滤掉了旧记录；
+- tokenkeeper 读取的是另一个 `state.db`；
+- Dashboard 读取的是另一个 `tokenkeeper.db`；
+- provider/model 没有可用 usage 或价格。
+
+### 外部 Node/Rust/桌面 agent 能统计吗？
+
+能，但必须满足至少一个条件：
+
+- 能配置 `base_url` 到 `http://127.0.0.1:8787/v1`；
+- 能主动 `POST /tokenkeeper/record`；
+- 有 tokenkeeper 已支持的本地状态库同步。
+
+如果不能路由、不能 callback、不能上报、也没有可读状态库，就不能自动统计。
+
+### 这么多限制还有没有实用意义？
+
+有，但实用范围是明确的：
+
+- 自己控制的 Python AI 应用；
+- LangChain 应用；
+- 能配置 `base_url` 的外部 agent；
+- Hermes 本地状态库同步；
+- 能主动上报 usage 的脚本或服务。
+
+它不是通用的系统级 AI 用量表。
+
+## 0.4.0 验证记录
+
+`0.4.0` 发布前已运行：
+
+```bash
+python -m compileall -q tokenkeeper tests scripts
+python -m pytest tests/ -v --tb=short --cov=tokenkeeper --cov-report=term-missing
+python scripts/validate_pricing.py
+python -m build
+python -m mypy tokenkeeper
+git diff --check
+```
+
+也从临时虚拟环境验证过 PyPI 安装：
+
+```bash
+pip install --no-cache-dir tokenkeeper-ai==0.4.0
+python -m tokenkeeper.cli version
+python -m tokenkeeper.cli connect --help
+python -m tokenkeeper.cli doctor --help
+```
+
+## License
+
+MIT
