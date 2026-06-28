@@ -32,6 +32,15 @@ This matrix is the source of truth for what tokenkeeper can honestly claim today
 | Anthropic HTTP proxy `/v1/messages` | Agent can route Anthropic messages requests through `tokenkeeper proxy` | `tests/test_proxy.py` |
 | Manual HTTP record endpoint | Agent can `POST /tokenkeeper/record` with explicit token/cost metadata | `tests/test_proxy.py` |
 | Proxy budget block | Proxy is configured with budget limits and `--budget-action block` | `tests/test_proxy.py` |
+| One-command proxy connector | User runs `tokenkeeper connect proxy` and configures the printed `base_url` | `tests/test_cli_connect.py` |
+
+## Verified Local State Sync
+
+| Entry point | Runtime requirement | Evidence |
+| --- | --- | --- |
+| Hermes local state database sync | Hermes has written sessions and token usage into a readable local `state.db` | `tests/test_hermes_connector.py`, `tests/test_cli_connect.py`, `tests/test_dashboard_smoke.py` |
+| One-command Hermes connector | User runs `tokenkeeper connect hermes` with the default or explicit Hermes `state.db` path | `tests/test_cli_connect.py` |
+| Installation diagnostics | User runs `tokenkeeper doctor` before connecting Hermes or proxy | `tests/test_cli_connect.py` |
 
 ## Target Automatic Capture
 
@@ -45,6 +54,7 @@ This matrix is the source of truth for what tokenkeeper can honestly claim today
 | LangChain callback | Callback explicitly attached to the model/agent | Verified |
 | External agents through local proxy | Agent can configure `base_url` to `tokenkeeper proxy` | Verified |
 | Any runtime through manual HTTP record | Agent can explicitly `POST /tokenkeeper/record` | Verified |
+| Hermes Desktop local state sync | Hermes has written session usage to a readable `state.db` | Verified |
 
 ## Fallback Capture Paths
 
@@ -53,7 +63,7 @@ This matrix is the source of truth for what tokenkeeper can honestly claim today
 | Non-Python agent, Node/Rust/Go app, desktop app, or separate process | Route OpenAI-compatible or Anthropic HTTP traffic through `tokenkeeper proxy` | Verified for tested HTTP paths |
 | Any runtime that cannot route traffic but can report metadata | `POST /tokenkeeper/record` explicitly | Verified |
 | Provider does not return token usage | Call can be captured, but token/cost fields are recorded as 0 until provider-specific extraction or manual records are added | Verified limitation |
-| Hermes-style local app with a readable state database | Use a tested state DB sync connector | Outside Phase 3 |
+| Hermes-style local app with a readable state database | Use `tokenkeeper connect hermes` or dashboard Hermes sync | Verified for tested Hermes `state.db` shape |
 
 ## Explicit Boundary
 

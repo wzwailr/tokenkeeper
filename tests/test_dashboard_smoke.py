@@ -57,6 +57,39 @@ def test_dashboard_hermes_sync_passes_since(monkeypatch, tmp_path) -> None:
     assert captured == {"tk_db_path": str(selected_db), "since": 1782543000.5}
 
 
+def test_dashboard_hermes_sync_uses_selected_hermes_db(monkeypatch, tmp_path) -> None:
+    module = importlib.import_module("tokenkeeper.dashboard.app")
+    selected_db = tmp_path / "selected-dashboard.db"
+    hermes_db = tmp_path / "state.db"
+    captured = {}
+
+    def fake_sync(
+        *,
+        hermes_db_path: str | None = None,
+        tk_db_path: str,
+        since: float | None = None,
+    ) -> int:
+        captured["hermes_db_path"] = hermes_db_path
+        captured["tk_db_path"] = tk_db_path
+        captured["since"] = since
+        return 1
+
+    monkeypatch.setattr(module, "_get_db_path", lambda: str(selected_db))
+    monkeypatch.setenv("TOKENKEEPER_HERMES_DB", str(hermes_db))
+    monkeypatch.delenv("TOKENKEEPER_HERMES_SYNC_SINCE", raising=False)
+    monkeypatch.setattr(
+        "tokenkeeper.integrations.hermes_connector.sync_hermes_to_tokenkeeper",
+        fake_sync,
+    )
+
+    assert module._sync_hermes_for_dashboard() == 1
+    assert captured == {
+        "hermes_db_path": str(hermes_db),
+        "tk_db_path": str(selected_db),
+        "since": None,
+    }
+
+
 def test_dashboard_hermes_sync_skips_postgres(monkeypatch) -> None:
     module = importlib.import_module("tokenkeeper.dashboard.app")
 

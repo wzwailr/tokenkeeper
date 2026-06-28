@@ -4,6 +4,20 @@ The proxy is the verified Phase 3 fallback for agents that cannot be monkey-patc
 
 ## CLI
 
+Preferred one-command connector:
+
+```bash
+tokenkeeper connect proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default --dashboard --port 8502
+```
+
+The command prints the `base_url` that should be configured in the agent:
+
+```text
+http://127.0.0.1:8787/v1
+```
+
+Lower-level proxy command:
+
 ```bash
 tokenkeeper proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default
 ```

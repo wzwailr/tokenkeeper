@@ -157,10 +157,14 @@ def _sync_hermes_for_dashboard(db_path: str | None = None) -> int:
     try:
         from tokenkeeper.integrations.hermes_connector import sync_hermes_to_tokenkeeper
 
-        return sync_hermes_to_tokenkeeper(
-            tk_db_path=target_db,
-            since=_get_hermes_sync_since(),
-        )
+        kwargs: dict[str, Any] = {
+            "tk_db_path": target_db,
+            "since": _get_hermes_sync_since(),
+        }
+        hermes_db = os.environ.get("TOKENKEEPER_HERMES_DB")
+        if hermes_db:
+            kwargs["hermes_db_path"] = hermes_db
+        return sync_hermes_to_tokenkeeper(**kwargs)
     except Exception:
         return 0
 

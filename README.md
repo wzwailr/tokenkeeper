@@ -10,7 +10,49 @@ tokenkeeper now has three verified accounting paths:
 | Framework callback | LangChain callback when explicitly attached |
 | External agent HTTP path | `tokenkeeper proxy` for tested OpenAI-compatible chat completions and Anthropic messages, plus `POST /tokenkeeper/record` for manual records |
 
-Start the local proxy:
+## Install and connect in 60 seconds
+
+For Hermes Desktop local accounting, install the dashboard extra and run the
+Hermes connector. This reads Hermes' local `state.db` and starts the dashboard
+against the same tokenkeeper ledger:
+
+```bash
+pip install "tokenkeeper-ai[dashboard]"
+tokenkeeper doctor --target hermes --db ./tokenkeeper.db --port 8502
+tokenkeeper connect hermes --db ./tokenkeeper.db --port 8502 --since now
+```
+
+If Hermes stores `state.db` outside the standard Windows location, pass it
+explicitly:
+
+```bash
+tokenkeeper connect hermes --hermes-db "C:\path\to\state.db" --db ./tokenkeeper.db --port 8502 --since now
+```
+
+For external agents that can configure an OpenAI-compatible `base_url`, run the
+proxy connector. It prints the exact `base_url` to put into the agent:
+
+```bash
+tokenkeeper doctor --target proxy --db ./tokenkeeper.db --port 8502
+tokenkeeper connect proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default --dashboard --port 8502
+```
+
+Configure the agent with:
+
+```text
+base_url = http://127.0.0.1:8787/v1
+```
+
+Hermes boundary: tokenkeeper can only sync calls that Hermes has already written
+to its local state database. If Hermes does not persist a call, omits usage
+fields, or uses a model not covered by the price table, tokenkeeper cannot
+fully calculate that call.
+
+Proxy boundary: the agent must be able to route traffic through the local proxy
+or actively report usage. Closed SaaS/private agents that cannot route, attach a
+callback, or post records cannot be silently counted.
+
+Start the lower-level local proxy directly:
 
 ```bash
 tokenkeeper proxy --upstream https://api.deepseek.com/v1 --listen 127.0.0.1:8787 --db ./tokenkeeper.db --project default --user default
@@ -328,6 +370,9 @@ tokenkeeper dashboard --port 8888 --db /path/to/db.sqlite
 ```bash
 tokenkeeper version          # 显示版本
 tokenkeeper info             # 运行时信息（已加载模型数、价格表日期）
+tokenkeeper doctor           # 检查安装、DB、Hermes、proxy、dashboard 是否可用
+tokenkeeper connect hermes   # 同步 Hermes 本地 state.db 并启动看板
+tokenkeeper connect proxy    # 启动记账 proxy，可配合 --dashboard 打开看板
 tokenkeeper dashboard        # 启动看板（默认 8501）
 tokenkeeper dashboard --port 8888 --db /path/to/db.sqlite
 ```
